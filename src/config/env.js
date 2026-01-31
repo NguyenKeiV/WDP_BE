@@ -8,21 +8,28 @@ const parseDatabaseUrl = (url) => {
   if (!url) return null;
 
   try {
-    // Format: postgres://user:password@host:port/database
-    const regex = /postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/;
+    // Format: postgres://user:password@host:port/database or postgresql://user:password@host/database
+    // Support both 'postgres://' and 'postgresql://'
+    // Port is optional (defaults to 5432)
+    const regex =
+      /postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:/]+)(?::(\d+))?\/(.+)/;
     const match = url.match(regex);
 
     if (match) {
+      console.log("✅ Successfully parsed DATABASE_URL");
       return {
         USER: match[1],
         PASSWORD: match[2],
         HOST: match[3],
-        PORT: parseInt(match[4]),
+        PORT: match[4] ? parseInt(match[4]) : 5432,
         NAME: match[5],
       };
+    } else {
+      console.log("❌ Failed to parse DATABASE_URL - regex did not match");
+      console.log("📍 URL format:", url.substring(0, 30) + "...");
     }
   } catch (error) {
-    console.error("Failed to parse DATABASE_URL:", error);
+    console.error("❌ Failed to parse DATABASE_URL:", error);
   }
   return null;
 };
