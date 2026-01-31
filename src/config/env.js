@@ -29,10 +29,16 @@ const parseDatabaseUrl = (url) => {
 
 // Get database configuration from DATABASE_URL or individual variables
 const getDatabaseConfig = () => {
+  console.log(
+    "🔍 DATABASE_URL from env:",
+    process.env.DATABASE_URL ? "EXISTS" : "NOT FOUND",
+  );
+
   const parsedUrl = parseDatabaseUrl(process.env.DATABASE_URL);
 
   if (parsedUrl) {
     console.log("✅ Using DATABASE_URL for database configuration");
+    console.log("📍 Database Host:", parsedUrl.HOST);
     return {
       HOST: parsedUrl.HOST,
       PORT: parsedUrl.PORT,
@@ -54,6 +60,8 @@ const getDatabaseConfig = () => {
   }
 
   console.log("✅ Using individual database environment variables");
+  console.log("📍 DB_HOST:", process.env.DB_HOST || "NOT SET");
+  console.log("📍 DB_DATABASE:", process.env.DB_DATABASE || "NOT SET");
   return {
     HOST: process.env.DB_HOST || "localhost",
     PORT: parseInt(process.env.DB_PORT) || 5432,
