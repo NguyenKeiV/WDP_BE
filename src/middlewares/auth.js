@@ -32,7 +32,12 @@ const optionalAuth = async (req, res, next) => {
       try {
         const user = await UserService.verifyToken(token);
         req.user = user;
-        console.log("✅ User authenticated:", user.id, user.email);
+        console.log(
+          "✅ User authenticated:",
+          user.id,
+          user.email,
+          `(${user.role})`,
+        );
       } catch (error) {
         // Invalid token, but continue anyway
         console.log("❌ Invalid token provided:", error.message);
@@ -80,7 +85,12 @@ const requireAuth = async (req, res, next) => {
     const user = await UserService.verifyToken(token);
     req.user = user;
 
-    console.log("✅ User authenticated (required):", user.id, user.email);
+    console.log(
+      "✅ User authenticated (required):",
+      user.id,
+      user.email,
+      `(${user.role})`,
+    );
 
     next();
   } catch (error) {
@@ -114,8 +124,62 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+/**
+ * Require coordinator role (or admin)
+ */
+const requireCoordinator = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required",
+    });
+  }
+
+  if (req.user.role !== "coordinator" && req.user.role !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Coordinator access required",
+    });
+  }
+
+  console.log(
+    "✅ Coordinator access granted:",
+    req.user.email,
+    `(${req.user.role})`,
+  );
+  next();
+};
+
+/**
+ * Require admin or coordinator role
+ */
+const requireAdminOrCoordinator = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required",
+    });
+  }
+
+  if (!["admin", "coordinator"].includes(req.user.role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Admin or Coordinator access required",
+    });
+  }
+
+  console.log(
+    "✅ Admin/Coordinator access granted:",
+    req.user.email,
+    `(${req.user.role})`,
+  );
+  next();
+};
+
 module.exports = {
   optionalAuth,
   requireAuth,
   requireAdmin,
+  requireCoordinator,
+  requireAdminOrCoordinator,
 };
