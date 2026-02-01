@@ -89,7 +89,7 @@ const requireAuth = async (req, res, next) => {
       "✅ User authenticated (required):",
       user.id,
       user.email,
-      `(${user.role})`,
+      `(${req.user.role})`,
     );
 
     next();
@@ -106,74 +106,171 @@ const requireAuth = async (req, res, next) => {
 /**
  * Require admin role
  */
-const requireAdmin = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
+const requireAdmin = async (req, res, next) => {
+  try {
+    // First authenticate
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "No authentication token provided",
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authentication token",
+      });
+    }
+
+    const user = await UserService.verifyToken(token);
+    req.user = user;
+
+    // Then check role
+    if (user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Admin access required",
+      });
+    }
+
+    console.log("✅ Admin access granted:", user.email);
+    next();
+  } catch (error) {
+    console.log("❌ Auth failed:", error.message);
+    res.status(401).json({
       success: false,
-      message: "Authentication required",
+      message: "Authentication failed",
+      error: error.message,
     });
   }
-
-  if (req.user.role !== "admin") {
-    return res.status(403).json({
-      success: false,
-      message: "Admin access required",
-    });
-  }
-
-  next();
 };
 
 /**
  * Require coordinator role (or admin)
  */
-const requireCoordinator = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
+const requireCoordinator = async (req, res, next) => {
+  try {
+    // First authenticate
+    const authHeader = req.headers.authorization;
+
+    console.log(
+      "🔍 RequireCoordinator - Authorization header:",
+      authHeader ? "EXISTS" : "NOT FOUND",
+    );
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "No authentication token provided",
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authentication token",
+      });
+    }
+
+    const user = await UserService.verifyToken(token);
+    req.user = user;
+
+    console.log(
+      "✅ User authenticated:",
+      user.id,
+      user.email,
+      `(${user.role})`,
+    );
+
+    // Then check role
+    if (user.role !== "coordinator" && user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Coordinator access required",
+      });
+    }
+
+    console.log("✅ Coordinator access granted:", user.email, `(${user.role})`);
+    next();
+  } catch (error) {
+    console.log("❌ Auth failed:", error.message);
+    res.status(401).json({
       success: false,
-      message: "Authentication required",
+      message: "Authentication failed",
+      error: error.message,
     });
   }
-
-  if (req.user.role !== "coordinator" && req.user.role !== "admin") {
-    return res.status(403).json({
-      success: false,
-      message: "Coordinator access required",
-    });
-  }
-
-  console.log(
-    "✅ Coordinator access granted:",
-    req.user.email,
-    `(${req.user.role})`,
-  );
-  next();
 };
 
 /**
  * Require admin or coordinator role
+ * This middleware handles both authentication AND authorization
  */
-const requireAdminOrCoordinator = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
+const requireAdminOrCoordinator = async (req, res, next) => {
+  try {
+    // First authenticate
+    const authHeader = req.headers.authorization;
+
+    console.log(
+      "🔍 RequireAdminOrCoordinator - Authorization header:",
+      authHeader ? "EXISTS" : "NOT FOUND",
+    );
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "No authentication token provided",
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authentication token",
+      });
+    }
+
+    const user = await UserService.verifyToken(token);
+    req.user = user;
+
+    console.log(
+      "✅ User authenticated:",
+      user.id,
+      user.email,
+      `(${user.role})`,
+    );
+
+    // Then check role
+    if (!["admin", "coordinator"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin or Coordinator access required",
+      });
+    }
+
+    console.log(
+      "✅ Admin/Coordinator access granted:",
+      user.email,
+      `(${user.role})`,
+    );
+    next();
+  } catch (error) {
+    console.log("❌ Auth failed:", error.message);
+    res.status(401).json({
       success: false,
-      message: "Authentication required",
+      message: "Authentication failed",
+      error: error.message,
     });
   }
-
-  if (!["admin", "coordinator"].includes(req.user.role)) {
-    return res.status(403).json({
-      success: false,
-      message: "Admin or Coordinator access required",
-    });
-  }
-
-  console.log(
-    "✅ Admin/Coordinator access granted:",
-    req.user.email,
-    `(${req.user.role})`,
-  );
-  next();
 };
 
 module.exports = {
