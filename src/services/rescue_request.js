@@ -63,7 +63,7 @@ class RescueRequestService {
             description,
             num_people: num_people || 1,
             priority,
-            status: "new", // Default status
+            status: "new", // Default status when created
             location_type,
             latitude: location_type === "gps" ? latitude : null,
             longitude: location_type === "gps" ? longitude : null,
@@ -110,6 +110,11 @@ class RescueRequestService {
               as: "creator",
               attributes: ["id", "username", "email"],
             },
+            {
+              model: this.UserModel,
+              as: "verifier",
+              attributes: ["id", "username", "email", "role"],
+            },
           ],
         });
 
@@ -143,7 +148,7 @@ class RescueRequestService {
           {
             model: this.UserModel,
             as: "verifier",
-            attributes: ["id", "username", "email"],
+            attributes: ["id", "username", "email", "role"],
           },
         ],
       });
@@ -151,6 +156,134 @@ class RescueRequestService {
       if (!request) {
         throw new Error("Rescue request not found");
       }
+
+      return request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Approve rescue request (Coordinator/Admin only)
+   * Changes status from 'new' to 'pending_verification'
+   * @param {string} id - Request ID
+   * @param {string} coordinatorId - Coordinator/Admin user ID
+   * @param {string} notes - Optional notes
+   */
+  static async approveRescueRequest(id, coordinatorId, notes = null) {
+    try {
+      const request = await this.getRescueRequestById(id);
+
+      // Check if request is in 'new' status
+      if (request.status !== "new") {
+        throw new Error(
+          `Cannot approve request with status '${request.status}'. Only 'new' requests can be approved.`,
+        );
+      }
+
+      // Verify coordinator exists and has correct role
+      const coordinator = await this.UserModel.findByPk(coordinatorId);
+      if (!coordinator) {
+        throw new Error("Coordinator not found");
+      }
+
+      if (!["coordinator", "admin"].includes(coordinator.role)) {
+        throw new Error("Only coordinators or admins can approve requests");
+      }
+
+      // Update request
+      await request.update({
+        status: "pending_verification",
+        verified_by: coordinatorId,
+        verified_at: new Date(),
+        notes: notes || "Request approved by coordinator",
+      });
+
+      // Reload with associations
+      await request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "verifier",
+            attributes: ["id", "username", "email", "role"],
+          },
+        ],
+      });
+
+      console.log(
+        `✅ Request ${id} approved by ${coordinator.email} (${coordinator.role})`,
+      );
+
+      return request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Reject rescue request (Coordinator/Admin only)
+   * Changes status from 'new' to 'rejected'
+   * @param {string} id - Request ID
+   * @param {string} coordinatorId - Coordinator/Admin user ID
+   * @param {string} reason - Rejection reason (required)
+   */
+  static async rejectRescueRequest(id, coordinatorId, reason) {
+    try {
+      if (!reason || reason.trim().length === 0) {
+        throw new Error("Rejection reason is required");
+      }
+
+      const request = await this.getRescueRequestById(id);
+
+      // Check if request is in 'new' status
+      if (request.status !== "new") {
+        throw new Error(
+          `Cannot reject request with status '${request.status}'. Only 'new' requests can be rejected.`,
+        );
+      }
+
+      // Verify coordinator exists and has correct role
+      const coordinator = await this.UserModel.findByPk(coordinatorId);
+      if (!coordinator) {
+        throw new Error("Coordinator not found");
+      }
+
+      if (!["coordinator", "admin"].includes(coordinator.role)) {
+        throw new Error("Only coordinators or admins can reject requests");
+      }
+
+      // Update request
+      await request.update({
+        status: "rejected",
+        verified_by: coordinatorId,
+        verified_at: new Date(),
+        notes: `Rejected: ${reason}`,
+      });
+
+      // Reload with associations
+      await request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "verifier",
+            attributes: ["id", "username", "email", "role"],
+          },
+        ],
+      });
+
+      console.log(
+        `❌ Request ${id} rejected by ${coordinator.email} (${coordinator.role})`,
+      );
 
       return request;
     } catch (error) {

@@ -119,6 +119,96 @@ class RescueRequestController {
   }
 
   /**
+   * Approve rescue request (Coordinator/Admin only)
+   * Changes status from 'new' to 'pending_verification'
+   */
+  static async approveRescueRequest(req, res) {
+    try {
+      const { id } = req.params;
+      const coordinatorId = req.user.id;
+      const { notes } = req.body;
+
+      console.log(`✅ Approving request ${id} by coordinator ${coordinatorId}`);
+
+      const request = await RescueRequestService.approveRescueRequest(
+        id,
+        coordinatorId,
+        notes,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Rescue request approved successfully",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      console.error("❌ Failed to approve request:", error.message);
+
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("Only coordinators")
+            ? 403
+            : 400;
+
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to approve rescue request",
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Reject rescue request (Coordinator/Admin only)
+   * Changes status from 'new' to 'rejected'
+   */
+  static async rejectRescueRequest(req, res) {
+    try {
+      const { id } = req.params;
+      const coordinatorId = req.user.id;
+      const { reason } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({
+          success: false,
+          message: "Rejection reason is required",
+          error: "Please provide a reason for rejection",
+        });
+      }
+
+      console.log(`❌ Rejecting request ${id} by coordinator ${coordinatorId}`);
+
+      const request = await RescueRequestService.rejectRescueRequest(
+        id,
+        coordinatorId,
+        reason,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Rescue request rejected successfully",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      console.error("❌ Failed to reject request:", error.message);
+
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("Only coordinators")
+            ? 403
+            : 400;
+
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to reject rescue request",
+        error: error.message,
+      });
+    }
+  }
+
+  /**
    * Update rescue request
    * Should be protected - only admin/volunteer can update
    */
