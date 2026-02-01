@@ -54,7 +54,7 @@ module.exports = (sequelize, DataTypes) => {
           "new",
           "pending_verification",
           "verified",
-          "in_progress",
+          "on_mission",
           "completed",
           "rejected",
         ),
@@ -116,6 +116,21 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         comment: "Ghi chú từ admin/volunteer",
       },
+      assigned_team_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        comment: "ID đội cứu hộ được phân công",
+      },
+      assigned_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: "Thời gian phân công đội",
+      },
+      assigned_by: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        comment: "ID coordinator phân công",
+      },
     },
     {
       tableName: "rescue_requests",
@@ -133,6 +148,9 @@ module.exports = (sequelize, DataTypes) => {
         },
         {
           fields: ["user_id"],
+        },
+        {
+          fields: ["assigned_team_id"],
         },
         {
           fields: ["created_at"],
@@ -154,6 +172,20 @@ module.exports = (sequelize, DataTypes) => {
     RescueRequest.belongsTo(models.User, {
       foreignKey: "verified_by",
       as: "verifier",
+      onDelete: "SET NULL",
+    });
+
+    // Belongs to User (assigner)
+    RescueRequest.belongsTo(models.User, {
+      foreignKey: "assigned_by",
+      as: "assigner",
+      onDelete: "SET NULL",
+    });
+
+    // Belongs to RescueTeam
+    RescueRequest.belongsTo(models.RescueTeam, {
+      foreignKey: "assigned_team_id",
+      as: "assigned_team",
       onDelete: "SET NULL",
     });
   };

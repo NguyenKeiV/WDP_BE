@@ -36,6 +36,20 @@ router.post(
   RescueRequestController.rejectRescueRequest,
 );
 
+// ⭐ NEW: Assign team to rescue request (status: pending_verification -> on_mission)
+router.post(
+  "/:id/assign-team",
+  requireAdminOrCoordinator,
+  RescueRequestController.assignTeam,
+);
+
+// ⭐ NEW: Complete mission (status: on_mission -> completed)
+router.post(
+  "/:id/complete",
+  requireAdminOrCoordinator,
+  RescueRequestController.completeMission,
+);
+
 // Update rescue request (admin/volunteer only) - should use requireAuth
 router.put("/:id", requireAuth, RescueRequestController.updateRescueRequest);
 
