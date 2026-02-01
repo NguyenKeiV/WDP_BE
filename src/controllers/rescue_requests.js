@@ -10,10 +10,21 @@ class RescueRequestController {
       const requestData = req.body;
       const userId = req.user ? req.user.id : null; // If authenticated, get user ID
 
+      // Debug log
+      console.log("📝 Creating rescue request");
+      console.log("👤 User ID:", userId || "ANONYMOUS");
+      console.log("📊 Request data:", {
+        category: requestData.category,
+        province_city: requestData.province_city,
+        phone_number: requestData.phone_number,
+      });
+
       const rescueRequest = await RescueRequestService.createRescueRequest(
         requestData,
         userId,
       );
+
+      console.log("✅ Rescue request created:", rescueRequest.id);
 
       res.status(201).json({
         success: true,
@@ -21,6 +32,7 @@ class RescueRequestController {
         data: rescueRequest.toJSON(),
       });
     } catch (error) {
+      console.error("❌ Failed to create rescue request:", error.message);
       res.status(400).json({
         success: false,
         message: "Failed to create rescue request",
@@ -43,6 +55,10 @@ class RescueRequestController {
         priority,
         user_id,
       } = req.query;
+
+      // Debug log
+      console.log("📋 Getting all rescue requests");
+      console.log("👤 Authenticated user:", req.user ? req.user.id : "NONE");
 
       const filters = {
         status,
@@ -111,6 +127,10 @@ class RescueRequestController {
       const { id } = req.params;
       const updateData = req.body;
       const userId = req.user ? req.user.id : null;
+
+      // Debug log
+      console.log("🔄 Updating rescue request:", id);
+      console.log("👤 User ID:", userId || "NONE");
 
       const request = await RescueRequestService.updateRescueRequest(
         id,

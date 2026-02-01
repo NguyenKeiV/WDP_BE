@@ -10,11 +10,9 @@ router.post("/", optionalAuth, RescueRequestController.createRescueRequest);
 // Get all rescue requests (with filters) - optional auth to show user's own requests
 router.get("/", optionalAuth, RescueRequestController.getAllRescueRequests);
 
-// Get rescue request by ID
-router.get("/:id", RescueRequestController.getRescueRequestById);
-
-// Get statistics
+// ✅ ĐÚNG - Route cụ thể phải đứng TRƯỚC route có param
 router.get("/stats/summary", RescueRequestController.getStatistics);
+router.get("/:id", RescueRequestController.getRescueRequestById);
 
 // Protected routes (should add authentication middleware later)
 // Update rescue request (admin/volunteer only)

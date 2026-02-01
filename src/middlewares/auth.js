@@ -9,26 +9,41 @@ const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
+    // Debug log
+    console.log(
+      "🔍 OptionalAuth - Authorization header:",
+      authHeader ? "EXISTS" : "NOT FOUND",
+    );
+
     if (!authHeader) {
       // No token provided, continue without authentication
+      console.log("⚠️  No authorization header, continuing without auth");
       return next();
     }
 
     const token = authHeader.replace("Bearer ", "");
 
+    console.log(
+      "🔑 Token extracted:",
+      token ? "EXISTS (length: " + token.length + ")" : "NOT FOUND",
+    );
+
     if (token) {
       try {
         const user = await UserService.verifyToken(token);
         req.user = user;
+        console.log("✅ User authenticated:", user.id, user.email);
       } catch (error) {
         // Invalid token, but continue anyway
-        console.log("Invalid token provided, continuing without auth");
+        console.log("❌ Invalid token provided:", error.message);
+        console.log("⚠️  Continuing without auth");
       }
     }
 
     next();
   } catch (error) {
     // Any error, just continue without authentication
+    console.log("❌ Error in optionalAuth:", error.message);
     next();
   }
 };
@@ -40,6 +55,11 @@ const optionalAuth = async (req, res, next) => {
 const requireAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
+
+    console.log(
+      "🔍 RequireAuth - Authorization header:",
+      authHeader ? "EXISTS" : "NOT FOUND",
+    );
 
     if (!authHeader) {
       return res.status(401).json({
@@ -59,8 +79,12 @@ const requireAuth = async (req, res, next) => {
 
     const user = await UserService.verifyToken(token);
     req.user = user;
+
+    console.log("✅ User authenticated (required):", user.id, user.email);
+
     next();
   } catch (error) {
+    console.log("❌ Auth failed:", error.message);
     res.status(401).json({
       success: false,
       message: "Authentication failed",
