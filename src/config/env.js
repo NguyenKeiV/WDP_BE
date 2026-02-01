@@ -71,7 +71,7 @@ const getDatabaseConfig = () => {
   console.log("📍 DB_DATABASE:", process.env.DB_DATABASE || "NOT SET");
   return {
     HOST: process.env.DB_HOST || "localhost",
-    PORT: parseInt(process.env.DB_PORT) || 5432,
+    PORT: parseInt(process.env.DB_PORT) || 3000,
     NAME: process.env.DB_DATABASE || "postgres",
     USER: process.env.DB_USERNAME || "db_user",
     PASSWORD: process.env.DB_PASSWORD || "db_password",
