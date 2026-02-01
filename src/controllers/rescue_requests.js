@@ -209,6 +209,101 @@ class RescueRequestController {
   }
 
   /**
+   * Assign team to rescue request (Coordinator/Admin only)
+   * Changes status from 'pending_verification' to 'on_mission'
+   */
+  static async assignTeam(req, res) {
+    try {
+      const { id } = req.params; // Request ID
+      const { team_id } = req.body; // Team ID to assign
+      const coordinatorId = req.user.id;
+
+      if (!team_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Team ID is required",
+          error: "Please provide team_id in request body",
+        });
+      }
+
+      console.log(
+        `🚨 Assigning team ${team_id} to request ${id} by coordinator ${coordinatorId}`,
+      );
+
+      const request = await RescueRequestService.assignTeamToRequest(
+        id,
+        team_id,
+        coordinatorId,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Team assigned successfully. Request is now ON MISSION.",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      console.error("❌ Failed to assign team:", error.message);
+
+      const statusCode =
+        error.message === "Rescue request not found" ||
+        error.message === "Team not found"
+          ? 404
+          : error.message.includes("Only coordinators")
+            ? 403
+            : 400;
+
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to assign team",
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Complete mission (Coordinator/Admin only)
+   * Changes status from 'on_mission' to 'completed'
+   */
+  static async completeMission(req, res) {
+    try {
+      const { id } = req.params;
+      const { completion_notes } = req.body;
+      const coordinatorId = req.user.id;
+
+      console.log(
+        `✅ Completing mission for request ${id} by coordinator ${coordinatorId}`,
+      );
+
+      const request = await RescueRequestService.completeMission(
+        id,
+        coordinatorId,
+        completion_notes,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Mission completed successfully. Team is now available.",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      console.error("❌ Failed to complete mission:", error.message);
+
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("Only coordinators")
+            ? 403
+            : 400;
+
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to complete mission",
+        error: error.message,
+      });
+    }
+  }
+
+  /**
    * Update rescue request
    * Should be protected - only admin/volunteer can update
    */

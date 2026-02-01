@@ -115,6 +115,11 @@ class RescueRequestService {
               as: "verifier",
               attributes: ["id", "username", "email", "role"],
             },
+            {
+              model: db.RescueTeam,
+              as: "assigned_team",
+              required: false,
+            },
           ],
         });
 
@@ -149,6 +154,15 @@ class RescueRequestService {
             model: this.UserModel,
             as: "verifier",
             attributes: ["id", "username", "email", "role"],
+          },
+          {
+            model: this.UserModel,
+            as: "assigner",
+            attributes: ["id", "username", "email", "role"],
+          },
+          {
+            model: db.RescueTeam,
+            as: "assigned_team",
           },
         ],
       });
@@ -286,6 +300,205 @@ class RescueRequestService {
       );
 
       return request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Assign team to rescue request (Coordinator/Admin only)
+   * Changes status from 'pending_verification' to 'on_mission'
+   * @param {string} requestId - Request ID
+   * @param {string} teamId - Team ID to assign
+   * @param {string} coordinatorId - Coordinator ID performing the assignment
+   */
+  static async assignTeamToRequest(requestId, teamId, coordinatorId) {
+    try {
+      const request = await this.getRescueRequestById(requestId);
+
+      // Check if request is in 'pending_verification' status
+      if (request.status !== "pending_verification") {
+        throw new Error(
+          `Cannot assign team to request with status '${request.status}'. Only 'pending_verification' requests can be assigned.`,
+        );
+      }
+
+      // Verify coordinator exists and has correct role
+      const coordinator = await this.UserModel.findByPk(coordinatorId);
+      if (!coordinator) {
+        throw new Error("Coordinator not found");
+      }
+
+      if (!["coordinator", "admin"].includes(coordinator.role)) {
+        throw new Error("Only coordinators or admins can assign teams");
+      }
+
+      // Verify team exists and is available
+      const RescueTeamService = require("./rescue_team");
+      const team = await RescueTeamService.getTeamById(teamId);
+
+      if (team.status !== "available") {
+        throw new Error(
+          `Team '${team.name}' is not available. Current status: ${team.status}`,
+        );
+      }
+
+      // Update request and team in transaction
+      const result = await transaction(async (t) => {
+        // Update rescue request
+        await request.update(
+          {
+            status: "on_mission",
+            assigned_team_id: teamId,
+            assigned_at: new Date(),
+            assigned_by: coordinatorId,
+          },
+          { transaction: t },
+        );
+
+        // Update team status to on_mission
+        await team.update(
+          {
+            status: "on_mission",
+          },
+          { transaction: t },
+        );
+
+        return { request, team };
+      });
+
+      // Reload with associations
+      await result.request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "verifier",
+            attributes: ["id", "username", "email", "role"],
+          },
+          {
+            model: this.UserModel,
+            as: "assigner",
+            attributes: ["id", "username", "email", "role"],
+          },
+          {
+            model: db.RescueTeam,
+            as: "assigned_team",
+          },
+        ],
+      });
+
+      console.log(
+        `✅ Team '${team.name}' assigned to request ${requestId} by ${coordinator.email}`,
+      );
+
+      return result.request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Complete rescue mission (Coordinator/Admin only)
+   * Changes status from 'on_mission' to 'completed'
+   * Sets team back to 'available'
+   * @param {string} requestId - Request ID
+   * @param {string} coordinatorId - Coordinator ID completing the mission
+   * @param {string} completionNotes - Optional completion notes
+   */
+  static async completeMission(
+    requestId,
+    coordinatorId,
+    completionNotes = null,
+  ) {
+    try {
+      const request = await this.getRescueRequestById(requestId);
+
+      // Check if request is on mission
+      if (request.status !== "on_mission") {
+        throw new Error(
+          `Cannot complete request with status '${request.status}'. Only 'on_mission' requests can be completed.`,
+        );
+      }
+
+      // Verify coordinator
+      const coordinator = await this.UserModel.findByPk(coordinatorId);
+      if (!coordinator) {
+        throw new Error("Coordinator not found");
+      }
+
+      if (!["coordinator", "admin"].includes(coordinator.role)) {
+        throw new Error("Only coordinators or admins can complete missions");
+      }
+
+      // Get assigned team
+      if (!request.assigned_team_id) {
+        throw new Error("No team assigned to this request");
+      }
+
+      const RescueTeamService = require("./rescue_team");
+      const team = await RescueTeamService.getTeamById(
+        request.assigned_team_id,
+      );
+
+      // Update request and team
+      const result = await transaction(async (t) => {
+        // Update request
+        await request.update(
+          {
+            status: "completed",
+            notes: completionNotes
+              ? `${request.notes || ""}\nCompleted: ${completionNotes}`
+              : request.notes,
+          },
+          { transaction: t },
+        );
+
+        // Set team back to available
+        await team.update(
+          {
+            status: "available",
+          },
+          { transaction: t },
+        );
+
+        return { request, team };
+      });
+
+      // Reload with associations
+      await result.request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "verifier",
+            attributes: ["id", "username", "email", "role"],
+          },
+          {
+            model: this.UserModel,
+            as: "assigner",
+            attributes: ["id", "username", "email", "role"],
+          },
+          {
+            model: db.RescueTeam,
+            as: "assigned_team",
+          },
+        ],
+      });
+
+      console.log(
+        `✅ Mission completed! Request ${requestId}, Team '${team.name}' now available`,
+      );
+
+      return result.request;
     } catch (error) {
       throw error;
     }
