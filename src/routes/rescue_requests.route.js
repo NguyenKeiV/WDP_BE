@@ -1,13 +1,14 @@
 const express = require("express");
 const RescueRequestController = require("../controllers/rescue_requests");
+const { optionalAuth } = require("../middlewares/auth");
 const router = express.Router();
 
-// Public routes (no authentication required)
-// Anyone can create a rescue request
-router.post("/", RescueRequestController.createRescueRequest);
+// Public routes (optional authentication)
+// Anyone can create a rescue request, with or without login
+router.post("/", optionalAuth, RescueRequestController.createRescueRequest);
 
-// Get all rescue requests (with filters)
-router.get("/", RescueRequestController.getAllRescueRequests);
+// Get all rescue requests (with filters) - optional auth to show user's own requests
+router.get("/", optionalAuth, RescueRequestController.getAllRescueRequests);
 
 // Get rescue request by ID
 router.get("/:id", RescueRequestController.getRescueRequestById);
