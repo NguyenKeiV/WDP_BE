@@ -302,6 +302,29 @@ const requireRescueTeam = async (req, res, next) => {
     });
   }
 };
+const requireAdminOrCoordinatorOrRescueTeam = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res
+        .status(401)
+        .json({ success: false, message: "No authentication token provided" });
+    }
+    const token = authHeader.replace("Bearer ", "");
+    const user = await UserService.verifyToken(token);
+    req.user = user;
+    if (!["admin", "coordinator", "rescue_team"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    next();
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: "Authentication failed",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   optionalAuth,
@@ -310,4 +333,5 @@ module.exports = {
   requireCoordinator,
   requireAdminOrCoordinator,
   requireRescueTeam,
+  requireAdminOrCoordinatorOrRescueTeam,
 };
