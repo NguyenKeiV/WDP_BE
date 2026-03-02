@@ -119,6 +119,13 @@ class RescueRequestService {
               model: db.RescueTeam,
               as: "assigned_team",
               required: false,
+              attributes: [
+                "id",
+                "name",
+                "leader_name",
+                "phone_number",
+                "province_city",
+              ],
             },
           ],
         });
@@ -466,8 +473,10 @@ class RescueRequestService {
         throw new Error("Coordinator not found");
       }
 
-      if (!["coordinator", "admin"].includes(coordinator.role)) {
-        throw new Error("Only coordinators or admins can complete missions");
+      if (!["coordinator", "admin", "rescue_team"].includes(coordinator.role)) {
+        throw new Error(
+          "Only coordinators, admins or rescue teams can complete missions",
+        );
       }
 
       // Get assigned team
