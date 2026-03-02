@@ -137,6 +137,41 @@ class RescueRequestService {
       throw error;
     }
   }
+  static async getMyTeamMissions(userId) {
+    try {
+      // Tìm team mà user này là trưởng nhóm
+      const team = await db.RescueTeam.findOne({
+        where: { user_id: userId },
+      });
+
+      if (!team) {
+        throw new Error("No team associated with this account");
+      }
+
+      // Lấy các nhiệm vụ đang on_mission của team
+      const missions = await this.RescueRequestModel.findAll({
+        where: {
+          assigned_team_id: team.id,
+          status: "on_mission",
+        },
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+        ],
+        order: [["assigned_at", "DESC"]],
+      });
+
+      return {
+        team: team.toJSON(),
+        missions: missions.map((m) => m.toJSON()),
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 
   /**
    * Get rescue request by ID

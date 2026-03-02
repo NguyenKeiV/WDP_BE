@@ -24,6 +24,7 @@ class RescueTeamService {
         province_city,
         equipment,
         notes,
+        user_id, // thêm
       } = teamData;
 
       // Validation
@@ -53,6 +54,7 @@ class RescueTeamService {
             province_city,
             equipment: equipment || [],
             notes,
+            user_id: user_id || null, // thêm
           },
           { transaction: t },
         );
@@ -179,6 +181,7 @@ class RescueTeamService {
         "province_city",
         "equipment",
         "notes",
+        "user_id", // thêm
       ];
 
       const filteredData = {};

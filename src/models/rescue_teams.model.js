@@ -78,6 +78,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         comment: "Ghi chú thêm",
       },
+      user_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        comment: "ID tài khoản trưởng nhóm",
+      },
     },
     {
       tableName: "rescue_teams",
@@ -103,6 +108,11 @@ module.exports = (sequelize, DataTypes) => {
     RescueTeam.hasMany(models.RescueRequest, {
       foreignKey: "assigned_team_id",
       as: "assigned_requests",
+    });
+    RescueTeam.belongsTo(models.User, {
+      foreignKey: "user_id",
+      as: "leader_account",
+      onDelete: "SET NULL",
     });
   };
 

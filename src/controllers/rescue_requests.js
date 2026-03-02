@@ -259,6 +259,24 @@ class RescueRequestController {
       });
     }
   }
+  static async getMyTeamMissions(req, res) {
+    try {
+      const userId = req.user.id;
+      const missions = await RescueRequestService.getMyTeamMissions(userId);
+
+      res.status(200).json({
+        success: true,
+        message: "Team missions retrieved successfully",
+        data: missions,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: "Failed to retrieve team missions",
+        error: error.message,
+      });
+    }
+  }
 
   /**
    * Complete mission (Coordinator/Admin only)

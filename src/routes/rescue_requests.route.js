@@ -55,5 +55,11 @@ router.put("/:id", requireAuth, RescueRequestController.updateRescueRequest);
 
 // Delete rescue request (admin only) - should use requireAuth + requireAdmin
 router.delete("/:id", requireAuth, RescueRequestController.deleteRescueRequest);
+// Team leader xem nhiệm vụ của đội mình
+router.get(
+  "/my-team-missions",
+  requireRescueTeam,
+  RescueRequestController.getMyTeamMissions,
+);
 
 module.exports = router;

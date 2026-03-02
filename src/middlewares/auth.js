@@ -272,6 +272,45 @@ const requireAdminOrCoordinator = async (req, res, next) => {
     });
   }
 };
+const requireRescueTeam = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "No authentication token provided",
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const user = await UserService.verifyToken(token);
+    req.user = user;
+
+    if (!["rescue_team", "admin"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Rescue team access required",
+      });
+    }
+
+    next();
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: "Authentication failed",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  optionalAuth,
+  requireAuth,
+  requireAdmin,
+  requireCoordinator,
+  requireAdminOrCoordinator,
+  requireRescueTeam, // thêm vào exports
+};
 
 module.exports = {
   optionalAuth,
