@@ -4,62 +4,53 @@ const {
   optionalAuth,
   requireAuth,
   requireAdminOrCoordinator,
+  requireRescueTeam,
 } = require("../middlewares/auth");
 const router = express.Router();
 
-// IMPORTANT: Specific routes must come BEFORE parameterized routes
-// Get statistics (must be before /:id route)
+// Stats (phải trước /:id)
 router.get("/stats/summary", RescueRequestController.getStatistics);
 
-// Public routes (optional authentication)
-// Get all rescue requests (with filters) - optional auth to show user's own requests
-router.get("/", optionalAuth, RescueRequestController.getAllRescueRequests);
+// Team leader xem nhiệm vụ (phải trước /:id)
+router.get(
+  "/my-team-missions",
+  requireRescueTeam,
+  RescueRequestController.getMyTeamMissions,
+);
 
-// Anyone can create a rescue request, with or without login
+// Public routes
+router.get("/", optionalAuth, RescueRequestController.getAllRescueRequests);
 router.post("/", optionalAuth, RescueRequestController.createRescueRequest);
 
-// Get rescue request by ID
+// Get by ID (phải sau tất cả route cụ thể)
 router.get("/:id", RescueRequestController.getRescueRequestById);
 
-// Protected routes - Coordinator/Admin only
-// Approve rescue request (status: new -> pending_verification)
+// Coordinator/Admin only
 router.post(
   "/:id/approve",
   requireAdminOrCoordinator,
   RescueRequestController.approveRescueRequest,
 );
 
-// Reject rescue request (status: new -> rejected)
 router.post(
   "/:id/reject",
   requireAdminOrCoordinator,
   RescueRequestController.rejectRescueRequest,
 );
 
-// ⭐ NEW: Assign team to rescue request (status: pending_verification -> on_mission)
 router.post(
   "/:id/assign-team",
   requireAdminOrCoordinator,
   RescueRequestController.assignTeam,
 );
 
-// ⭐ NEW: Complete mission (status: on_mission -> completed)
 router.post(
   "/:id/complete",
   requireAdminOrCoordinator,
   RescueRequestController.completeMission,
 );
 
-// Update rescue request (admin/volunteer only) - should use requireAuth
 router.put("/:id", requireAuth, RescueRequestController.updateRescueRequest);
-
-// Delete rescue request (admin only) - should use requireAuth + requireAdmin
 router.delete("/:id", requireAuth, RescueRequestController.deleteRescueRequest);
-// Team leader xem nhiệm vụ của đội mình
-router.get(
-  "/my-team-missions",
-  requireRescueTeam,
-  RescueRequestController.getMyTeamMissions,
-);
 
 module.exports = router;

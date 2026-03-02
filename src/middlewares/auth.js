@@ -309,13 +309,5 @@ module.exports = {
   requireAdmin,
   requireCoordinator,
   requireAdminOrCoordinator,
-  requireRescueTeam, // thêm vào exports
-};
-
-module.exports = {
-  optionalAuth,
-  requireAuth,
-  requireAdmin,
-  requireCoordinator,
-  requireAdminOrCoordinator,
+  requireRescueTeam,
 };
