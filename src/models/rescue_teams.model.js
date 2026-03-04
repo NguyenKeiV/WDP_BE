@@ -9,6 +9,11 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
         allowNull: false,
       },
+      user_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        comment: "ID tài khoản trưởng nhóm",
+      },
       name: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -77,11 +82,6 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true,
         comment: "Ghi chú thêm",
-      },
-      user_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        comment: "ID tài khoản trưởng nhóm",
       },
     },
     {
