@@ -1,38 +1,50 @@
 const express = require("express");
 const SupplyController = require("../controllers/supplies");
-const {
-  requireAdminOrCoordinator,
-  requireManager,
-} = require("../middlewares/auth");
+const { requireManager } = require("../middlewares/auth");
+const UserService = require("../services/user");
+
+const requireViewAccess = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res
+        .status(401)
+        .json({ success: false, message: "No authentication token provided" });
+    }
+    const token = authHeader.replace("Bearer ", "");
+    const user = await UserService.verifyToken(token);
+    req.user = user;
+    if (!["admin", "coordinator", "manager"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    next();
+  } catch (error) {
+    res
+      .status(401)
+      .json({
+        success: false,
+        message: "Authentication failed",
+        error: error.message,
+      });
+  }
+};
+
 const router = express.Router();
 
-// Get all supplies (Coordinator/Admin/Manager)
-router.get("/", requireAdminOrCoordinator, SupplyController.getAllSupplies);
-
-// Get distributions log
+router.get("/", requireViewAccess, SupplyController.getAllSupplies);
 router.get(
   "/distributions",
-  requireAdminOrCoordinator,
+  requireViewAccess,
   SupplyController.getDistributions,
 );
-
-// Get supply by ID
-router.get("/:id", requireAdminOrCoordinator, SupplyController.getSupplyById);
-
-// Create supply (Manager only)
+router.get("/:id", requireViewAccess, SupplyController.getSupplyById);
 router.post("/", requireManager, SupplyController.createSupply);
-
-// Distribute supply to team (Manager only)
 router.post(
   "/:id/distribute",
   requireManager,
   SupplyController.distributeSupply,
 );
-
-// Update supply (Manager only)
 router.put("/:id", requireManager, SupplyController.updateSupply);
-
-// Delete supply (Manager only)
 router.delete("/:id", requireManager, SupplyController.deleteSupply);
 
 module.exports = router;

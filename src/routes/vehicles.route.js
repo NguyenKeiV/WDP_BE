@@ -1,24 +1,40 @@
 const express = require("express");
 const VehicleController = require("../controllers/vehicles");
-const {
-  requireAdminOrCoordinator,
-  requireManager,
-} = require("../middlewares/auth");
+const { requireManager } = require("../middlewares/auth");
+const UserService = require("../services/user");
+
+const requireViewAccess = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res
+        .status(401)
+        .json({ success: false, message: "No authentication token provided" });
+    }
+    const token = authHeader.replace("Bearer ", "");
+    const user = await UserService.verifyToken(token);
+    req.user = user;
+    if (!["admin", "coordinator", "manager"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    next();
+  } catch (error) {
+    res
+      .status(401)
+      .json({
+        success: false,
+        message: "Authentication failed",
+        error: error.message,
+      });
+  }
+};
+
 const router = express.Router();
 
-// Get all vehicles (Coordinator/Admin/Manager)
-router.get("/", requireAdminOrCoordinator, VehicleController.getAllVehicles);
-
-// Get vehicle by ID
-router.get("/:id", requireAdminOrCoordinator, VehicleController.getVehicleById);
-
-// Create vehicle (Manager only)
+router.get("/", requireViewAccess, VehicleController.getAllVehicles);
+router.get("/:id", requireViewAccess, VehicleController.getVehicleById);
 router.post("/", requireManager, VehicleController.createVehicle);
-
-// Update vehicle (Manager only)
 router.put("/:id", requireManager, VehicleController.updateVehicle);
-
-// Delete vehicle (Manager only)
 router.delete("/:id", requireManager, VehicleController.deleteVehicle);
 
 module.exports = router;
