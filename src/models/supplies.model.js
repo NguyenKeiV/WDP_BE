@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       name: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        comment: "Tên nhu yếu phẩm",
+        comment: "Tên mặt hàng",
       },
       category: {
         type: DataTypes.ENUM(
@@ -24,17 +24,17 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "other",
       },
-      quantity: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-        validate: { min: 0 },
-      },
       unit: {
         type: DataTypes.STRING(20),
         allowNull: false,
         defaultValue: "cái",
         comment: "Đơn vị: cái, kg, lít, thùng...",
+      },
+      min_quantity: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 10,
+        comment: "Ngưỡng cảnh báo sắp hết hàng",
       },
       province_city: {
         type: DataTypes.STRING(100),
@@ -51,6 +51,17 @@ module.exports = (sequelize, DataTypes) => {
       paranoid: true,
     },
   );
+
+  Supply.associate = function (models) {
+    Supply.hasMany(models.SupplyImport, {
+      foreignKey: "supply_id",
+      as: "imports",
+    });
+    Supply.hasMany(models.SupplyDistribution, {
+      foreignKey: "supply_id",
+      as: "distributions",
+    });
+  };
 
   return Supply;
 };
