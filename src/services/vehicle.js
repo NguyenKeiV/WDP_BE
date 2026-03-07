@@ -25,7 +25,7 @@ class VehicleService {
             model: db.RescueTeam,
             as: "assigned_team",
             required: false,
-            attributes: ["id", "name", "leader_name"],
+            attributes: ["id", "name", "phone_number", "district"],
           },
         ],
       });
@@ -51,7 +51,7 @@ class VehicleService {
           {
             model: db.RescueTeam,
             as: "assigned_team",
-            attributes: ["id", "name", "leader_name", "phone_number"],
+            attributes: ["id", "name", "phone_number", "district"],
           },
         ],
       });
