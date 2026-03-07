@@ -12,55 +12,62 @@ class RescueTeamService {
   /**
    * Create new rescue team
    */
-  static async createTeam(teamData) {
+  static async createTeam(data) {
     try {
       const {
         name,
-        leader_name,
         phone_number,
         specialization,
         capacity,
-        current_members,
-        province_city,
-        equipment,
+        available_members,
+        district,
         notes,
-        user_id, // thêm
-      } = teamData;
+        user_id,
+      } = data;
 
       // Validation
-      if (!name || !leader_name || !phone_number || !province_city) {
+      if (!name || !phone_number || !district || !user_id || !capacity) {
         throw new Error("Missing required fields");
       }
 
-      // Check if team name already exists
-      const existingTeam = await this.RescueTeamModel.findOne({
-        where: { name },
-      });
-
-      if (existingTeam) {
-        throw new Error("Team with this name already exists");
+      // Kiểm tra user tồn tại và có role rescue_team
+      const user = await db.User.findByPk(user_id);
+      if (!user) throw new Error("User not found");
+      if (user.role !== "rescue_team") {
+        throw new Error("Tài khoản được liên kết phải có role rescue_team");
       }
 
-      const team = await transaction(async (t) => {
-        return await this.RescueTeamModel.create(
-          {
-            name,
-            leader_name,
-            phone_number,
-            specialization: specialization || "general",
-            capacity: capacity || 5,
-            current_members: current_members || 0,
-            status: "available",
-            province_city,
-            equipment: equipment || [],
-            notes,
-            user_id: user_id || null, // thêm
-          },
-          { transaction: t },
-        );
+      // Kiểm tra user chưa được liên kết với đội nào
+      const existingTeam = await this.RescueTeamModel.findOne({
+        where: { user_id },
+      });
+      if (existingTeam) {
+        throw new Error("Tài khoản này đã được liên kết với đội khác");
+      }
+
+      const team = await this.RescueTeamModel.create({
+        name,
+        phone_number,
+        specialization: specialization || "rescue",
+        capacity,
+        available_members: available_members || 0,
+        district,
+        notes,
+        user_id,
+        status: "available",
       });
 
-      console.log(`✅ Team created: ${team.name} (${team.id})`);
+      // Reload với thông tin leader
+      await team.reload({
+        include: [
+          {
+            model: db.User,
+            as: "leader_account",
+            attributes: ["id", "username", "email"],
+          },
+        ],
+      });
+
       return team;
     } catch (error) {
       throw error;
@@ -166,34 +173,65 @@ class RescueTeamService {
   /**
    * Update team
    */
-  static async updateTeam(id, updateData) {
+  static async updateTeam(id, data) {
     try {
       const team = await this.getTeamById(id);
 
-      const allowedFields = [
-        "name",
-        "leader_name",
-        "phone_number",
-        "specialization",
-        "capacity",
-        "current_members",
-        "status",
-        "province_city",
-        "equipment",
-        "notes",
-        "user_id", // thêm
-      ];
+      const {
+        name,
+        phone_number,
+        specialization,
+        capacity,
+        available_members,
+        district,
+        notes,
+        user_id,
+        status,
+      } = data;
 
-      const filteredData = {};
-      allowedFields.forEach((field) => {
-        if (updateData[field] !== undefined) {
-          filteredData[field] = updateData[field];
+      // Nếu đổi user_id thì kiểm tra lại
+      if (user_id && user_id !== team.user_id) {
+        const user = await db.User.findByPk(user_id);
+        if (!user) throw new Error("User not found");
+        if (user.role !== "rescue_team") {
+          throw new Error("Tài khoản được liên kết phải có role rescue_team");
         }
+        const existingTeam = await this.RescueTeamModel.findOne({
+          where: { user_id },
+        });
+        if (existingTeam && existingTeam.id !== id) {
+          throw new Error("Tài khoản này đã được liên kết với đội khác");
+        }
+      }
+
+      const allowedFields = {
+        name,
+        phone_number,
+        specialization,
+        capacity,
+        available_members,
+        district,
+        notes,
+        user_id,
+        status,
+      };
+      const filtered = {};
+      Object.keys(allowedFields).forEach((k) => {
+        if (allowedFields[k] !== undefined) filtered[k] = allowedFields[k];
       });
 
-      await team.update(filteredData);
+      await team.update(filtered);
 
-      console.log(`✅ Team updated: ${team.name}`);
+      await team.reload({
+        include: [
+          {
+            model: db.User,
+            as: "leader_account",
+            attributes: ["id", "username", "email"],
+          },
+        ],
+      });
+
       return team;
     } catch (error) {
       throw error;

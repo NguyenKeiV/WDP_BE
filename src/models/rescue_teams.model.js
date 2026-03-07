@@ -1,4 +1,3 @@
-// Sequelize Rescue Team Model Definition
 module.exports = (sequelize, DataTypes) => {
   const RescueTeam = sequelize.define(
     "RescueTeam",
@@ -9,102 +8,79 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
         allowNull: false,
       },
-      user_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        comment: "ID tài khoản trưởng nhóm",
-      },
       name: {
         type: DataTypes.STRING(100),
         allowNull: false,
         unique: true,
-        validate: {
-          notEmpty: true,
-        },
+        validate: { notEmpty: true },
         comment: "Tên đội cứu hộ",
-      },
-      leader_name: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        comment: "Tên đội trưởng",
       },
       phone_number: {
         type: DataTypes.STRING(20),
         allowNull: false,
-        validate: {
-          notEmpty: true,
-        },
+        validate: { notEmpty: true },
         comment: "Số điện thoại liên lạc",
       },
       specialization: {
-        type: DataTypes.ENUM("general", "medical", "vehicle", "supplies"),
+        type: DataTypes.ENUM("rescue", "relief"),
         allowNull: false,
-        defaultValue: "general",
-        comment:
-          "Chuyên môn: tổng hợp, y tế, cứu hộ xe, phân phối nhu yếu phẩm",
+        defaultValue: "rescue",
+        comment: "Chuyên môn: cứu hộ / cứu trợ",
       },
       capacity: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 5,
-        validate: {
-          min: 1,
-        },
-        comment: "Số người tối đa trong đội",
+        validate: { min: 1 },
+        comment: "Số thành viên tối đa",
       },
-      current_members: {
+      available_members: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0,
-        validate: {
-          min: 0,
-        },
-        comment: "Số người hiện tại",
+        validate: { min: 0 },
+        comment: "Số thành viên sẵn sàng",
       },
       status: {
         type: DataTypes.ENUM("available", "on_mission", "unavailable"),
         allowNull: false,
         defaultValue: "available",
-        comment: "Trạng thái: rảnh, đang làm nhiệm vụ, không khả dụng",
       },
-      province_city: {
+      district: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        comment: "Khu vực hoạt động chính",
+        comment: "Quận/Huyện tại TP.HCM",
       },
       equipment: {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],
-        comment: "Danh sách trang thiết bị",
       },
       notes: {
         type: DataTypes.TEXT,
         allowNull: true,
-        comment: "Ghi chú thêm",
+      },
+      user_id: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        unique: true,
+        comment: "Tài khoản trưởng nhóm (bắt buộc, role rescue_team)",
       },
     },
     {
       tableName: "rescue_teams",
       timestamps: true,
-      paranoid: true, // Soft delete
+      paranoid: true,
       indexes: [
-        {
-          fields: ["status"],
-        },
-        {
-          fields: ["specialization"],
-        },
-        {
-          fields: ["province_city"],
-        },
+        { fields: ["status"] },
+        { fields: ["specialization"] },
+        { fields: ["district"] },
+        { fields: ["user_id"] },
       ],
     },
   );
 
-  // Associations
   RescueTeam.associate = function (models) {
-    // Has many RescueRequests
     RescueTeam.hasMany(models.RescueRequest, {
       foreignKey: "assigned_team_id",
       as: "assigned_requests",
@@ -112,7 +88,7 @@ module.exports = (sequelize, DataTypes) => {
     RescueTeam.belongsTo(models.User, {
       foreignKey: "user_id",
       as: "leader_account",
-      onDelete: "SET NULL",
+      onDelete: "RESTRICT",
     });
   };
 
