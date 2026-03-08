@@ -1,0 +1,281 @@
+const { db, transaction } = require("../config/database");
+
+class VehicleRequestService {
+  static get VehicleRequestModel() {
+    return db.VehicleRequest;
+  }
+
+  static get VehicleModel() {
+    return db.Vehicle;
+  }
+
+  static async getAllRequests(filters = {}, page = 1, limit = 20) {
+    try {
+      const { status, team_id } = filters;
+      const offset = (page - 1) * limit;
+      const where = {};
+      if (status) where.status = status;
+      if (team_id) where.team_id = team_id;
+
+      const { count, rows } = await this.VehicleRequestModel.findAndCountAll({
+        where,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        order: [["created_at", "DESC"]],
+        include: [
+          {
+            model: db.RescueRequest,
+            as: "rescue_request",
+            attributes: [
+              "id",
+              "category",
+              "description",
+              "province_city",
+              "status",
+            ],
+          },
+          {
+            model: db.RescueTeam,
+            as: "team",
+            attributes: ["id", "name", "district"],
+          },
+          {
+            model: db.User,
+            as: "coordinator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: db.User,
+            as: "manager",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: db.Vehicle,
+            as: "assigned_vehicles",
+            attributes: ["id", "name", "type", "license_plate", "status"],
+          },
+        ],
+      });
+
+      return {
+        requests: rows.map((r) => r.toJSON()),
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count,
+          totalPages: Math.ceil(count / limit),
+        },
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getRequestById(id) {
+    try {
+      const request = await this.VehicleRequestModel.findByPk(id, {
+        include: [
+          {
+            model: db.RescueRequest,
+            as: "rescue_request",
+            attributes: [
+              "id",
+              "category",
+              "description",
+              "province_city",
+              "status",
+            ],
+          },
+          {
+            model: db.RescueTeam,
+            as: "team",
+            attributes: ["id", "name", "district"],
+          },
+          {
+            model: db.User,
+            as: "coordinator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: db.User,
+            as: "manager",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: db.Vehicle,
+            as: "assigned_vehicles",
+            attributes: ["id", "name", "type", "license_plate", "status"],
+          },
+        ],
+      });
+      if (!request) throw new Error("Vehicle request not found");
+      return request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async createRequest(data, coordinatorId) {
+    try {
+      const {
+        rescue_request_id,
+        team_id,
+        vehicle_type,
+        quantity_needed,
+        reason,
+        notes,
+      } = data;
+
+      if (!rescue_request_id || !team_id || !vehicle_type || !reason) {
+        throw new Error("Missing required fields");
+      }
+
+      // Kiểm tra rescue request tồn tại
+      const rescueRequest = await db.RescueRequest.findByPk(rescue_request_id);
+      if (!rescueRequest) throw new Error("Rescue request not found");
+
+      // Kiểm tra team tồn tại
+      const team = await db.RescueTeam.findByPk(team_id);
+      if (!team) throw new Error("Team not found");
+
+      const request = await this.VehicleRequestModel.create({
+        rescue_request_id,
+        team_id,
+        vehicle_type,
+        quantity_needed: quantity_needed || 1,
+        reason,
+        notes,
+        requested_by: coordinatorId,
+        status: "pending",
+      });
+
+      return await this.getRequestById(request.id);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async approveRequest(id, managerId, vehicleIds) {
+    try {
+      const request = await this.getRequestById(id);
+
+      if (request.status !== "pending") {
+        throw new Error(
+          `Cannot approve request with status '${request.status}'`,
+        );
+      }
+
+      if (!vehicleIds || vehicleIds.length === 0) {
+        throw new Error("Please select at least one vehicle to assign");
+      }
+
+      // Kiểm tra tất cả vehicle available
+      const vehicles = await this.VehicleModel.findAll({
+        where: { id: vehicleIds },
+      });
+
+      if (vehicles.length !== vehicleIds.length) {
+        throw new Error("One or more vehicles not found");
+      }
+
+      const unavailable = vehicles.filter((v) => v.status !== "available");
+      if (unavailable.length > 0) {
+        throw new Error(
+          `Vehicles not available: ${unavailable.map((v) => v.name).join(", ")}`,
+        );
+      }
+
+      await transaction(async (t) => {
+        // Cập nhật status request
+        await request.update(
+          {
+            status: "approved",
+            approved_by: managerId,
+          },
+          { transaction: t },
+        );
+
+        // Cập nhật từng vehicle
+        for (const vehicle of vehicles) {
+          await vehicle.update(
+            {
+              status: "in_use",
+              assigned_team_id: request.team_id,
+              vehicle_request_id: id,
+            },
+            { transaction: t },
+          );
+        }
+      });
+
+      return await this.getRequestById(id);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async rejectRequest(id, managerId, reject_reason) {
+    try {
+      const request = await this.getRequestById(id);
+
+      if (request.status !== "pending") {
+        throw new Error(
+          `Cannot reject request with status '${request.status}'`,
+        );
+      }
+
+      if (!reject_reason) throw new Error("Reject reason is required");
+
+      await request.update({
+        status: "rejected",
+        approved_by: managerId,
+        reject_reason,
+      });
+
+      return await this.getRequestById(id);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async returnVehicles(id, managerId) {
+    try {
+      const request = await this.getRequestById(id);
+
+      if (request.status !== "approved") {
+        throw new Error(
+          `Cannot return vehicles for request with status '${request.status}'`,
+        );
+      }
+
+      await transaction(async (t) => {
+        // Cập nhật status request
+        await request.update(
+          {
+            status: "returned",
+          },
+          { transaction: t },
+        );
+
+        // Trả phương tiện về available
+        await this.VehicleModel.update(
+          {
+            status: "available",
+            assigned_team_id: null,
+            vehicle_request_id: null,
+          },
+          {
+            where: { vehicle_request_id: id },
+            transaction: t,
+          },
+        );
+      });
+
+      return await this.getRequestById(id);
+    } catch (error) {
+      throw error;
+    }
+  }
+}
+
+module.exports = VehicleRequestService;
