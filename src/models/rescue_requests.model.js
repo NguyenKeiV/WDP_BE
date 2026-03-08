@@ -1,4 +1,3 @@
-// Sequelize Rescue Request Model Definition
 module.exports = (sequelize, DataTypes) => {
   const RescueRequest = sequelize.define(
     "RescueRequest",
@@ -10,21 +9,20 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       category: {
-        type: DataTypes.ENUM("rescue", "supplies", "vehicle_rescue", "other"),
+        type: DataTypes.ENUM("rescue", "relief"),
         allowNull: false,
-        comment: "Phân loại: cần cứu hộ, cần nhu yếu phẩm, cần cứu hộ xe, khác",
+        comment:
+          "Phân loại: rescue (cứu hộ người/tài sản) | relief (cứu trợ nhu yếu phẩm)",
       },
-      province_city: {
+      district: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        comment: "Tỉnh/Thành phố",
+        comment: "Quận/Huyện tại TP.HCM",
       },
       phone_number: {
         type: DataTypes.STRING(20),
         allowNull: false,
-        validate: {
-          notEmpty: true,
-        },
+        validate: { notEmpty: true },
       },
       description: {
         type: DataTypes.TEXT,
@@ -39,9 +37,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 1,
-        validate: {
-          min: 1,
-        },
+        validate: { min: 1 },
         comment: "Số người gặp nạn",
       },
       priority: {
@@ -70,20 +66,12 @@ module.exports = (sequelize, DataTypes) => {
       latitude: {
         type: DataTypes.DECIMAL(10, 8),
         allowNull: true,
-        validate: {
-          min: -90,
-          max: 90,
-        },
-        comment: "GPS latitude",
+        validate: { min: -90, max: 90 },
       },
       longitude: {
         type: DataTypes.DECIMAL(11, 8),
         allowNull: true,
-        validate: {
-          min: -180,
-          max: 180,
-        },
-        comment: "GPS longitude",
+        validate: { min: -180, max: 180 },
       },
       address: {
         type: DataTypes.TEXT,
@@ -94,95 +82,68 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],
-        comment: "Mảng URLs của hình ảnh/video đính kèm",
       },
       user_id: {
         type: DataTypes.UUID,
         allowNull: true,
-        comment: "ID người dùng tạo request (NULL nếu không đăng nhập)",
+        comment: "NULL nếu guest",
       },
       verified_by: {
         type: DataTypes.UUID,
         allowNull: true,
-        comment: "ID admin/volunteer xác minh",
       },
       verified_at: {
         type: DataTypes.DATE,
         allowNull: true,
-        comment: "Thời gian xác minh",
       },
       notes: {
         type: DataTypes.TEXT,
         allowNull: true,
-        comment: "Ghi chú từ admin/volunteer",
       },
       assigned_team_id: {
         type: DataTypes.UUID,
         allowNull: true,
-        comment: "ID đội cứu hộ được phân công",
       },
       assigned_at: {
         type: DataTypes.DATE,
         allowNull: true,
-        comment: "Thời gian phân công đội",
       },
       assigned_by: {
         type: DataTypes.UUID,
         allowNull: true,
-        comment: "ID coordinator phân công",
       },
     },
     {
       tableName: "rescue_requests",
       timestamps: true,
-      paranoid: true, // Soft delete
+      paranoid: true,
       indexes: [
-        {
-          fields: ["status"],
-        },
-        {
-          fields: ["category"],
-        },
-        {
-          fields: ["province_city"],
-        },
-        {
-          fields: ["user_id"],
-        },
-        {
-          fields: ["assigned_team_id"],
-        },
-        {
-          fields: ["created_at"],
-        },
+        { fields: ["status"] },
+        { fields: ["category"] },
+        { fields: ["district"] },
+        { fields: ["user_id"] },
+        { fields: ["assigned_team_id"] },
+        { fields: ["created_at"] },
       ],
     },
   );
 
-  // Associations
   RescueRequest.associate = function (models) {
-    // Belongs to User (creator)
     RescueRequest.belongsTo(models.User, {
       foreignKey: "user_id",
       as: "creator",
       onDelete: "SET NULL",
     });
-
-    // Belongs to User (verifier)
     RescueRequest.belongsTo(models.User, {
       foreignKey: "verified_by",
       as: "verifier",
       onDelete: "SET NULL",
     });
-
-    // Belongs to User (assigner)
     RescueRequest.belongsTo(models.User, {
       foreignKey: "assigned_by",
       as: "assigner",
       onDelete: "SET NULL",
     });
-
-    // Belongs to RescueTeam
     RescueRequest.belongsTo(models.RescueTeam, {
       foreignKey: "assigned_team_id",
       as: "assigned_team",
