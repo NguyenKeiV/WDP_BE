@@ -7,7 +7,8 @@ const rescueTeamsRoute = require("./rescue_teams.route");
 const vehiclesRoute = require("./vehicles.route");
 const suppliesRoute = require("./supplies.route");
 const importBatchesRoute = require("./import_batches.route");
-
+const vehicleRequestsRoute = require("./vehicle_requests.route");
+router.use("/vehicle-requests", vehicleRequestsRoute);
 router.use("/users", usersRoute);
 router.use("/rescue-requests", rescueRequestsRoute);
 router.use("/rescue-teams", rescueTeamsRoute);
