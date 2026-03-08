@@ -26,13 +26,7 @@ class VehicleRequestService {
           {
             model: db.RescueRequest,
             as: "rescue_request",
-            attributes: [
-              "id",
-              "category",
-              "description",
-              "province_city",
-              "status",
-            ],
+            attributes: ["id", "category", "description", "district", "status"],
           },
           {
             model: db.RescueTeam,
@@ -78,13 +72,7 @@ class VehicleRequestService {
           {
             model: db.RescueRequest,
             as: "rescue_request",
-            attributes: [
-              "id",
-              "category",
-              "description",
-              "province_city",
-              "status",
-            ],
+            attributes: ["id", "category", "description", "district", "status"],
           },
           {
             model: db.RescueTeam,
