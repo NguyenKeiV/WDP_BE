@@ -227,7 +227,7 @@ class RescueRequestService {
       // Check if request is in 'new' status
       if (request.status !== "new") {
         throw new Error(
-          `Cannot approve request with status '${request.status}'. Only 'new' requests can be approved.`,
+          `Cannot approve request with status '${request.status}'.`,
         );
       }
 
@@ -291,9 +291,9 @@ class RescueRequestService {
       const request = await this.getRescueRequestById(id);
 
       // Check if request is in 'new' status
-      if (request.status !== "new") {
+      if (!["new", "pending_verification"].includes(request.status)) {
         throw new Error(
-          `Cannot reject request with status '${request.status}'. Only 'new' requests can be rejected.`,
+          `Cannot reject request with status '${request.status}'.`,
         );
       }
 
