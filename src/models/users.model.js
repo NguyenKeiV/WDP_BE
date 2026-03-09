@@ -46,6 +46,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "user",
       },
+      expo_push_token: {
+        type: DataTypes.STRING(200),
+        allowNull: true,
+        defaultValue: null,
+      },
     },
     {
       tableName: "users",
