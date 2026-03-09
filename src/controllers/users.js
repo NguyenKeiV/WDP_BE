@@ -152,6 +152,12 @@ class UserController {
     try {
       const userId = req.user.id;
       const { token } = req.body;
+      console.log(
+        "📱 updatePushToken called, userId:",
+        userId,
+        "token:",
+        token,
+      );
       if (!token) {
         return res.status(400).json({
           success: false,
@@ -159,11 +165,13 @@ class UserController {
         });
       }
       await UserService.updatePushToken(userId, token);
+      console.log("✅ Push token updated in DB for user:", userId);
       res.status(200).json({
         success: true,
         message: "Push token updated successfully",
       });
     } catch (error) {
+      console.error("❌ updatePushToken error:", error.message);
       res.status(400).json({
         success: false,
         message: "Failed to update push token",
