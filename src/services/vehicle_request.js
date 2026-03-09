@@ -157,7 +157,6 @@ class VehicleRequestService {
         throw new Error("Please select at least one vehicle to assign");
       }
 
-      // Kiểm tra tất cả vehicle available
       const vehicles = await this.VehicleModel.findAll({
         where: { id: vehicleIds },
       });
@@ -174,16 +173,10 @@ class VehicleRequestService {
       }
 
       await transaction(async (t) => {
-        // Cập nhật status request
         await request.update(
-          {
-            status: "approved",
-            approved_by: managerId,
-          },
+          { status: "approved", approved_by: managerId },
           { transaction: t },
         );
-
-        // Cập nhật từng vehicle
         for (const vehicle of vehicles) {
           await vehicle.update(
             {
@@ -196,7 +189,34 @@ class VehicleRequestService {
         }
       });
 
-      return await this.getRequestById(id);
+      const updatedRequest = await this.getRequestById(id);
+
+      // Gửi push notification cho rescue team
+      try {
+        const UserService = require("./user");
+        const team = await db.RescueTeam.findByPk(updatedRequest.team_id);
+        if (team?.user_id) {
+          const teamUser = await db.User.findByPk(team.user_id);
+          if (teamUser?.expo_push_token) {
+            const vehicleNames = updatedRequest.assigned_vehicles
+              .map((v) => v.name)
+              .join(", ");
+            await UserService.sendPushNotification(
+              teamUser.expo_push_token,
+              "🚗 Phương tiện đã được cấp",
+              `Đội ${updatedRequest.team?.name} đã được cấp: ${vehicleNames}. Vui lòng lên kho nhận phương tiện.`,
+              {
+                type: "vehicle_approved",
+                vehicle_request_id: id,
+              },
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Failed to send push notification:", e);
+      }
+
+      return updatedRequest;
     } catch (error) {
       throw error;
     }
