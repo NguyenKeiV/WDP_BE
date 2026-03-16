@@ -1,6 +1,6 @@
 const express = require("express");
 const SupplyController = require("../controllers/supplies");
-const { requireManager } = require("../middlewares/auth");
+const { requireManager, requireRescueTeam } = require("../middlewares/auth");
 const UserService = require("../services/user");
 
 const requireViewAccess = async (req, res, next) => {
@@ -36,6 +36,11 @@ router.get(
   "/distributions",
   requireViewAccess,
   SupplyController.getDistributions,
+);
+router.get(
+  "/my-team-distributions",
+  requireRescueTeam,
+  SupplyController.getMyTeamDistributions,
 );
 router.get("/:id", requireViewAccess, SupplyController.getSupplyById);
 router.post("/", requireManager, SupplyController.createSupply);

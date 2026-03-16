@@ -284,6 +284,49 @@ class VehicleRequestService {
       throw error;
     }
   }
+
+  /**
+   * Rescue team báo cáo đã trả xe (chỉ đội được cấp xe mới gọi được)
+   */
+  static async reportReturnByTeam(id, userId) {
+    try {
+      const RescueTeamService = require("./rescue_team");
+      const team = await RescueTeamService.getTeamByUserId(userId);
+      if (!team) throw new Error("No team associated with this account");
+
+      const request = await this.getRequestById(id);
+      if (request.team_id !== team.id) {
+        throw new Error("This vehicle request does not belong to your team");
+      }
+      if (request.status !== "approved") {
+        throw new Error(
+          `Cannot report return for request with status '${request.status}'`,
+        );
+      }
+
+      await transaction(async (t) => {
+        await request.update(
+          { status: "returned" },
+          { transaction: t },
+        );
+        await this.VehicleModel.update(
+          {
+            status: "available",
+            assigned_team_id: null,
+            vehicle_request_id: null,
+          },
+          {
+            where: { vehicle_request_id: id },
+            transaction: t,
+          },
+        );
+      });
+
+      return await this.getRequestById(id);
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 module.exports = VehicleRequestService;

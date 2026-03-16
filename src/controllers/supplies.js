@@ -142,6 +142,40 @@ class SupplyController {
     }
   }
 
+  static async getMyTeamDistributions(req, res) {
+    try {
+      const userId = req.user.id;
+      const team = await require("../services/rescue_team").getTeamByUserId(
+        userId,
+      );
+      if (!team) {
+        return res.status(404).json({
+          success: false,
+          message: "No team associated with this account",
+          error: "No team associated with this account",
+        });
+      }
+      const { page = 1, limit = 20 } = req.query;
+      const result = await SupplyService.getDistributionsByTeamId(
+        team.id,
+        page,
+        limit,
+      );
+      res.status(200).json({
+        success: true,
+        message: "My team distributions retrieved successfully",
+        data: result.distributions,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: "Failed to retrieve my team distributions",
+        error: error.message,
+      });
+    }
+  }
+
   static async getDistributions(req, res) {
     try {
       const { page = 1, limit = 20, team_id, supply_id } = req.query;

@@ -4,6 +4,7 @@ const {
   requireCoordinator,
   requireManager,
   requireAdminOrCoordinator,
+  requireRescueTeam,
 } = require("../middlewares/auth");
 const UserService = require("../services/user");
 
@@ -57,6 +58,11 @@ router.post(
   "/:id/return",
   requireManager,
   VehicleRequestController.returnVehicles,
+);
+router.post(
+  "/:id/report-return",
+  requireRescueTeam,
+  VehicleRequestController.reportReturnByTeam,
 );
 
 module.exports = router;

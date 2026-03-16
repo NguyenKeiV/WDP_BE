@@ -18,6 +18,11 @@ router.get(
 );
 router.get("/", optionalAuth, RescueRequestController.getAllRescueRequests);
 router.post("/", optionalAuth, RescueRequestController.createRescueRequest);
+router.post(
+  "/link-to-me",
+  requireAuth,
+  RescueRequestController.linkToMe,
+);
 router.get("/:id", RescueRequestController.getRescueRequestById);
 router.post(
   "/:id/approve",

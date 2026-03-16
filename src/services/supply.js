@@ -208,6 +208,10 @@ class SupplyService {
     }
   }
 
+  static async getDistributionsByTeamId(teamId, page = 1, limit = 20) {
+    return this.getDistributions({ team_id: teamId }, page, limit);
+  }
+
   static async getDistributions(filters = {}, page = 1, limit = 20) {
     try {
       const { team_id, supply_id } = filters;

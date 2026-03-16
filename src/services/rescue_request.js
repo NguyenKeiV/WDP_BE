@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const { db, transaction } = require("../config/database");
 
 class RescueRequestService {
@@ -138,7 +139,10 @@ class RescueRequestService {
       if (!team) throw new Error("No team associated with this account");
 
       const missions = await this.RescueRequestModel.findAll({
-        where: { assigned_team_id: team.id, status: "on_mission" },
+        where: {
+          assigned_team_id: team.id,
+          status: { [Op.in]: ["on_mission", "completed"] },
+        },
         include: [
           {
             model: this.UserModel,
@@ -327,6 +331,7 @@ class RescueRequestService {
     requestId,
     coordinatorId,
     completionNotes = null,
+    completionMediaUrls = null,
   ) {
     try {
       const request = await this.getRescueRequestById(requestId);
@@ -355,6 +360,9 @@ class RescueRequestService {
             notes: completionNotes
               ? `${request.notes || ""}\nCompleted: ${completionNotes}`
               : request.notes,
+            completion_media_urls: Array.isArray(completionMediaUrls)
+              ? completionMediaUrls
+              : request.completion_media_urls || [],
           },
           { transaction: t },
         );
@@ -385,6 +393,28 @@ class RescueRequestService {
     } catch (error) {
       throw error;
     }
+  }
+
+  /**
+   * Gắn các yêu cầu guest (user_id = null) vào tài khoản user vừa đăng nhập.
+   * Chỉ gắn được những request chưa có chủ (user_id IS NULL).
+   */
+  static async linkGuestRequestsToUser(requestIds, userId) {
+    if (!requestIds || !Array.isArray(requestIds) || requestIds.length === 0) {
+      return { linked: 0, request_ids: [] };
+    }
+    const ids = [...new Set(requestIds)].filter(Boolean);
+    const updated = await this.RescueRequestModel.update(
+      { user_id: userId },
+      {
+        where: {
+          id: ids,
+          user_id: null,
+        },
+      },
+    );
+    const linked = updated[0] || 0;
+    return { linked, request_ids: ids };
   }
 
   static async updateRescueRequest(id, updateData, userId = null) {

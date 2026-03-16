@@ -112,6 +112,12 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.UUID,
         allowNull: true,
       },
+      completion_media_urls: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+        comment: "Ảnh báo cáo từ đội cứu hộ khi hoàn thành",
+      },
     },
     {
       tableName: "rescue_requests",

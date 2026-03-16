@@ -25,6 +25,28 @@ class RescueRequestController {
     }
   }
 
+  static async linkToMe(req, res) {
+    try {
+      const { request_ids: requestIds } = req.body;
+      const userId = req.user.id;
+      const result = await RescueRequestService.linkGuestRequestsToUser(
+        requestIds,
+        userId,
+      );
+      res.status(200).json({
+        success: true,
+        message: `Đã gắn ${result.linked} yêu cầu vào tài khoản của bạn`,
+        data: result,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: "Failed to link requests",
+        error: error.message,
+      });
+    }
+  }
+
   static async getMyTeamMissions(req, res) {
     try {
       const result = await RescueRequestService.getMyTeamMissions(req.user.id);
@@ -219,11 +241,12 @@ class RescueRequestController {
   static async completeMission(req, res) {
     try {
       const { id } = req.params;
-      const { completion_notes } = req.body;
+      const { completion_notes, completion_media_urls } = req.body;
       const request = await RescueRequestService.completeMission(
         id,
         req.user.id,
         completion_notes,
+        completion_media_urls,
       );
       res
         .status(200)

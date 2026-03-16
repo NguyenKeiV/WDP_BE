@@ -171,6 +171,20 @@ class RescueTeamService {
   }
 
   /**
+   * Get team by user_id (leader account)
+   */
+  static async getTeamByUserId(userId) {
+    try {
+      const team = await this.RescueTeamModel.findOne({
+        where: { user_id: userId },
+      });
+      return team;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
    * Update team
    */
   static async updateTeam(id, data) {

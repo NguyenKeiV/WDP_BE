@@ -22,8 +22,10 @@ app.use((req, res, next) => {
   next();
 });
 
+const path = require("path");
 const routes = require("./src/routes/index");
 app.use("/api", routes);
+app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use((err, req, res, next) => {
   console.error("Error:", err);

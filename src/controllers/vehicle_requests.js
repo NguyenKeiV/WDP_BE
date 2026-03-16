@@ -171,6 +171,34 @@ class VehicleRequestController {
         });
     }
   }
+
+  static async reportReturnByTeam(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+
+      const request = await VehicleRequestService.reportReturnByTeam(id, userId);
+      res.status(200).json({
+        success: true,
+        message: "Báo cáo thu hồi xe thành công. Phương tiện đã được trả về kho.",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      const statusCode =
+        error.message === "Vehicle request not found"
+          ? 404
+          : error.message === "No team associated with this account"
+            ? 404
+            : error.message.includes("does not belong to your team")
+              ? 403
+              : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to report vehicle return",
+        error: error.message,
+      });
+    }
+  }
 }
 
 module.exports = VehicleRequestController;
