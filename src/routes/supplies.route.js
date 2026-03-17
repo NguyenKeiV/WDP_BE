@@ -19,13 +19,11 @@ const requireViewAccess = async (req, res, next) => {
     }
     next();
   } catch (error) {
-    res
-      .status(401)
-      .json({
-        success: false,
-        message: "Authentication failed",
-        error: error.message,
-      });
+    res.status(401).json({
+      success: false,
+      message: "Authentication failed",
+      error: error.message,
+    });
   }
 };
 
@@ -45,10 +43,16 @@ router.get(
 router.get("/:id", requireViewAccess, SupplyController.getSupplyById);
 router.post("/", requireManager, SupplyController.createSupply);
 router.post(
+  "/bulk-distribute",
+  requireManager,
+  SupplyController.bulkDistribute,
+);
+router.post(
   "/:id/distribute",
   requireManager,
   SupplyController.distributeSupply,
 );
+
 router.put("/:id", requireManager, SupplyController.updateSupply);
 router.delete("/:id", requireManager, SupplyController.deleteSupply);
 

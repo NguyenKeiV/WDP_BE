@@ -17,13 +17,11 @@ class SupplyController {
         pagination: result.pagination,
       });
     } catch (error) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Failed to retrieve supplies",
-          error: error.message,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Failed to retrieve supplies",
+        error: error.message,
+      });
     }
   }
 
@@ -38,13 +36,11 @@ class SupplyController {
       });
     } catch (error) {
       const statusCode = error.message === "Supply not found" ? 404 : 400;
-      res
-        .status(statusCode)
-        .json({
-          success: false,
-          message: "Failed to retrieve supply",
-          error: error.message,
-        });
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to retrieve supply",
+        error: error.message,
+      });
     }
   }
 
@@ -57,13 +53,11 @@ class SupplyController {
         data: supply.toJSON(),
       });
     } catch (error) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Failed to create supply",
-          error: error.message,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Failed to create supply",
+        error: error.message,
+      });
     }
   }
 
@@ -78,13 +72,11 @@ class SupplyController {
       });
     } catch (error) {
       const statusCode = error.message === "Supply not found" ? 404 : 400;
-      res
-        .status(statusCode)
-        .json({
-          success: false,
-          message: "Failed to update supply",
-          error: error.message,
-        });
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to update supply",
+        error: error.message,
+      });
     }
   }
 
@@ -95,13 +87,11 @@ class SupplyController {
       res.status(200).json({ success: true, message: result.message });
     } catch (error) {
       const statusCode = error.message === "Supply not found" ? 404 : 400;
-      res
-        .status(statusCode)
-        .json({
-          success: false,
-          message: "Failed to delete supply",
-          error: error.message,
-        });
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to delete supply",
+        error: error.message,
+      });
     }
   }
 
@@ -132,13 +122,41 @@ class SupplyController {
         data: distribution.toJSON(),
       });
     } catch (error) {
-      res
-        .status(400)
-        .json({
+      res.status(400).json({
+        success: false,
+        message: "Failed to distribute supply",
+        error: error.message,
+      });
+    }
+  }
+  static async bulkDistribute(req, res) {
+    try {
+      const { items } = req.body;
+      const managerId = req.user.id;
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({
           success: false,
-          message: "Failed to distribute supply",
-          error: error.message,
+          message: "items array is required",
         });
+      }
+
+      const distributions = await SupplyService.bulkDistribute(
+        items,
+        managerId,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Đã xuất ${distributions.length} loại mặt hàng thành công`,
+        data: distributions,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: "Failed to bulk distribute supplies",
+        error: error.message,
+      });
     }
   }
 
@@ -192,13 +210,11 @@ class SupplyController {
         pagination: result.pagination,
       });
     } catch (error) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Failed to retrieve distributions",
-          error: error.message,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Failed to retrieve distributions",
+        error: error.message,
+      });
     }
   }
 }

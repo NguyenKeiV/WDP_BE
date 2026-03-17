@@ -207,6 +207,91 @@ class SupplyService {
       throw error;
     }
   }
+  static async bulkDistribute(items, managerId) {
+    // items = [{ supply_id, team_id, quantity, notes }, ...]
+    try {
+      if (!items || items.length === 0) {
+        throw new Error("Danh sách mặt hàng không được rỗng");
+      }
+
+      const results = await transaction(async (t) => {
+        const distributions = [];
+
+        for (const item of items) {
+          const { supply_id, team_id, quantity, notes } = item;
+
+          if (!supply_id || !team_id || !quantity) {
+            throw new Error(
+              "Mỗi mặt hàng cần có supply_id, team_id và quantity",
+            );
+          }
+
+          const supply = await this.SupplyModel.findByPk(supply_id);
+          if (!supply) throw new Error(`Mặt hàng ${supply_id} không tồn tại`);
+
+          const team = await db.RescueTeam.findByPk(team_id);
+          if (!team) throw new Error(`Đội ${team_id} không tồn tại`);
+
+          // Lấy các lô còn hàng, FIFO theo hạn SD
+          const imports = await this.SupplyImportModel.findAll({
+            where: { supply_id },
+            include: [
+              {
+                model: db.ImportBatch,
+                as: "batch",
+                where: { status: "completed" },
+              },
+            ],
+            order: [["expiry_date", "ASC NULLS LAST"]],
+            transaction: t,
+          });
+
+          const totalAvailable = imports.reduce(
+            (sum, i) => sum + i.remaining,
+            0,
+          );
+          if (totalAvailable < quantity) {
+            throw new Error(
+              `Không đủ số lượng cho "${supply.name}". Hiện có: ${totalAvailable} ${supply.unit}`,
+            );
+          }
+
+          // Trừ FIFO
+          let remaining = quantity;
+          for (const importItem of imports) {
+            if (remaining <= 0) break;
+            if (importItem.remaining <= 0) continue;
+            const toDeduct = Math.min(importItem.remaining, remaining);
+            await importItem.update(
+              { remaining: importItem.remaining - toDeduct },
+              { transaction: t },
+            );
+            remaining -= toDeduct;
+          }
+
+          // Tạo phiếu xuất
+          const distribution = await this.DistributionModel.create(
+            {
+              supply_id,
+              team_id,
+              quantity,
+              distributed_by: managerId,
+              notes: notes || null,
+            },
+            { transaction: t },
+          );
+
+          distributions.push(distribution);
+        }
+
+        return distributions;
+      });
+
+      return results;
+    } catch (error) {
+      throw error;
+    }
+  }
 
   static async getDistributionsByTeamId(teamId, page = 1, limit = 20) {
     return this.getDistributions({ team_id: teamId }, page, limit);
