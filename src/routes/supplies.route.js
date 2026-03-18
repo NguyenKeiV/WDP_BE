@@ -29,7 +29,7 @@ const requireViewAccess = async (req, res, next) => {
 
 const router = express.Router();
 
-// --- Supply CRUD ---
+// --- Supply CRUD (static routes trước) ---
 router.get("/", requireViewAccess, SupplyController.getAllSupplies);
 router.get(
   "/distributions",
@@ -42,7 +42,7 @@ router.get(
   SupplyController.getMyTeamDistributions,
 );
 
-// --- Supply Usages (đặt trước /:id để tránh conflict) ---
+// --- Supply Usages (static routes trước /:id) ---
 router.get("/usages", requireViewAccess, SupplyController.getUsages);
 router.get(
   "/usages/my-team-inventory",
@@ -64,45 +64,29 @@ router.get(
   requireViewAccess,
   SupplyController.getTeamInventory,
 );
-router.post(
-  "/usages/report",
-  requireRescueTeam,
-  SupplyController.reportUsage,
-);
+router.post("/usages/report", requireRescueTeam, SupplyController.reportUsage);
 router.post(
   "/usages/bulk-report",
   requireRescueTeam,
   SupplyController.bulkReportUsage,
 );
 
-// --- Supply by ID ---
-// Constrain :id to UUID so that reserved paths like "usages" don't get treated as an ID.
-router.get(
-  "/:id([0-9a-fA-F-]{36})",
-  requireViewAccess,
-  SupplyController.getSupplyById,
-);
+// --- POST static routes (trước /:id) ---
 router.post("/", requireManager, SupplyController.createSupply);
 router.post(
   "/bulk-distribute",
   requireManager,
   SupplyController.bulkDistribute,
 );
+
+// --- Dynamic :id routes (luôn đặt sau static) ---
+router.get("/:id", requireViewAccess, SupplyController.getSupplyById);
 router.post(
-  "/:id([0-9a-fA-F-]{36})/distribute",
+  "/:id/distribute",
   requireManager,
   SupplyController.distributeSupply,
 );
-
-router.put(
-  "/:id([0-9a-fA-F-]{36})",
-  requireManager,
-  SupplyController.updateSupply,
-);
-router.delete(
-  "/:id([0-9a-fA-F-]{36})",
-  requireManager,
-  SupplyController.deleteSupply,
-);
+router.put("/:id", requireManager, SupplyController.updateSupply);
+router.delete("/:id", requireManager, SupplyController.deleteSupply);
 
 module.exports = router;
