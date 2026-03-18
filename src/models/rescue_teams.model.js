@@ -90,6 +90,10 @@ module.exports = (sequelize, DataTypes) => {
       as: "leader_account",
       onDelete: "RESTRICT",
     });
+    RescueTeam.hasMany(models.SupplyUsage, {
+      foreignKey: "team_id",
+      as: "supply_usages",
+    });
   };
 
   return RescueTeam;

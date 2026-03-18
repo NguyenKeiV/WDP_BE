@@ -155,6 +155,10 @@ module.exports = (sequelize, DataTypes) => {
       as: "assigned_team",
       onDelete: "SET NULL",
     });
+    RescueRequest.hasMany(models.SupplyUsage, {
+      foreignKey: "rescue_request_id",
+      as: "supply_usages",
+    });
   };
 
   return RescueRequest;

@@ -29,6 +29,7 @@ const requireViewAccess = async (req, res, next) => {
 
 const router = express.Router();
 
+// --- Supply CRUD ---
 router.get("/", requireViewAccess, SupplyController.getAllSupplies);
 router.get(
   "/distributions",
@@ -40,7 +41,47 @@ router.get(
   requireRescueTeam,
   SupplyController.getMyTeamDistributions,
 );
-router.get("/:id", requireViewAccess, SupplyController.getSupplyById);
+
+// --- Supply Usages (đặt trước /:id để tránh conflict) ---
+router.get("/usages", requireViewAccess, SupplyController.getUsages);
+router.get(
+  "/usages/my-team-inventory",
+  requireRescueTeam,
+  SupplyController.getMyTeamInventory,
+);
+router.get(
+  "/usages/my-team",
+  requireRescueTeam,
+  SupplyController.getMyTeamUsages,
+);
+router.get(
+  "/usages/mission/:missionId",
+  requireViewAccess,
+  SupplyController.getUsagesByMission,
+);
+router.get(
+  "/usages/team/:teamId",
+  requireViewAccess,
+  SupplyController.getTeamInventory,
+);
+router.post(
+  "/usages/report",
+  requireRescueTeam,
+  SupplyController.reportUsage,
+);
+router.post(
+  "/usages/bulk-report",
+  requireRescueTeam,
+  SupplyController.bulkReportUsage,
+);
+
+// --- Supply by ID ---
+// Constrain :id to UUID so that reserved paths like "usages" don't get treated as an ID.
+router.get(
+  "/:id([0-9a-fA-F-]{36})",
+  requireViewAccess,
+  SupplyController.getSupplyById,
+);
 router.post("/", requireManager, SupplyController.createSupply);
 router.post(
   "/bulk-distribute",
@@ -48,12 +89,20 @@ router.post(
   SupplyController.bulkDistribute,
 );
 router.post(
-  "/:id/distribute",
+  "/:id([0-9a-fA-F-]{36})/distribute",
   requireManager,
   SupplyController.distributeSupply,
 );
 
-router.put("/:id", requireManager, SupplyController.updateSupply);
-router.delete("/:id", requireManager, SupplyController.deleteSupply);
+router.put(
+  "/:id([0-9a-fA-F-]{36})",
+  requireManager,
+  SupplyController.updateSupply,
+);
+router.delete(
+  "/:id([0-9a-fA-F-]{36})",
+  requireManager,
+  SupplyController.deleteSupply,
+);
 
 module.exports = router;
