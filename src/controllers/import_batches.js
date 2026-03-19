@@ -75,7 +75,8 @@ class ImportBatchController {
   static async completeBatch(req, res) {
     try {
       const { id } = req.params;
-      const batch = await ImportBatchService.completeBatch(id);
+      const managerId = req.user?.id || null;
+      const batch = await ImportBatchService.completeBatch(id, managerId);
       res.status(200).json({
         success: true,
         message: "Batch completed successfully. Stock has been updated.",

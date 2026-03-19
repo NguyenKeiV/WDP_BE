@@ -65,6 +65,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "batch_id",
       as: "items",
     });
+    ImportBatch.hasMany(models.CharityHistory, {
+      foreignKey: "import_batch_id",
+      as: "charity_histories",
+    });
   };
 
   return ImportBatch;

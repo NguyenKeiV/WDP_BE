@@ -1,4 +1,8 @@
 const { db, transaction } = require("../config/database");
+const CharityService = require("./charity");
+
+// Regex đơn giản cho SĐT VN: bắt đầu bằng 0 và đủ 10 chữ số.
+const isValidVNPhone = (phone) => /^0\d{9}$/.test(String(phone || ""));
 
 class ImportBatchService {
   static get BatchModel() {
@@ -105,6 +109,15 @@ class ImportBatchService {
         throw new Error("Donor name is required for donate source");
       }
 
+      if (source === "donate") {
+        if (!donor_phone) {
+          throw new Error("donor_phone is required for donate source");
+        }
+        if (!isValidVNPhone(donor_phone)) {
+          throw new Error("Invalid donor_phone");
+        }
+      }
+
       if (!items || items.length === 0) {
         throw new Error("At least one item is required");
       }
@@ -166,17 +179,30 @@ class ImportBatchService {
     }
   }
 
-  static async completeBatch(id) {
+  static async completeBatch(id, managerId = null) {
     try {
-      const batch = await this.getBatchById(id);
-      if (batch.status === "completed") {
-        throw new Error("Batch is already completed");
-      }
-      if (batch.items.length === 0) {
-        throw new Error("Cannot complete batch with no items");
-      }
-      await batch.update({ status: "completed" });
-      return batch;
+      return await transaction(async (t) => {
+        const batch = await this.getBatchById(id);
+        if (batch.status === "completed") {
+          throw new Error("Batch is already completed");
+        }
+        if (batch.items.length === 0) {
+          throw new Error("Cannot complete batch with no items");
+        }
+
+        await batch.update({ status: "completed" }, { transaction: t });
+
+        // Side effect for donate: ghi nhận charity history + receipt_code
+        if (batch.source === "donate") {
+          await CharityService.recordDonationHistoryForBatch(
+            batch,
+            t,
+            managerId,
+          );
+        }
+
+        return batch;
+      });
     } catch (error) {
       throw error;
     }

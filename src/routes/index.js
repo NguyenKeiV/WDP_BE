@@ -9,6 +9,7 @@ const suppliesRoute = require("./supplies.route");
 const importBatchesRoute = require("./import_batches.route");
 const vehicleRequestsRoute = require("./vehicle_requests.route");
 const uploadRoute = require("./upload.route");
+const charityRoute = require("./charity.route");
 router.use("/vehicle-requests", vehicleRequestsRoute);
 router.use("/upload", uploadRoute);
 router.use("/users", usersRoute);
@@ -17,5 +18,6 @@ router.use("/rescue-teams", rescueTeamsRoute);
 router.use("/vehicles", vehiclesRoute);
 router.use("/supplies", suppliesRoute);
 router.use("/import-batches", importBatchesRoute);
+router.use("/charity", charityRoute);
 
 module.exports = router;
