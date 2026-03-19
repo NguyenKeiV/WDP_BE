@@ -9,13 +9,36 @@ class VehicleRequestService {
     return db.Vehicle;
   }
 
-  static async getAllRequests(filters = {}, page = 1, limit = 20) {
+  // Sửa: thêm tham số userRole và userTeamId để filter đúng cho rescue_team
+  static async getAllRequests(filters = {}, page = 1, limit = 20, user = null) {
     try {
       const { status, team_id } = filters;
       const offset = (page - 1) * limit;
       const where = {};
       if (status) where.status = status;
-      if (team_id) where.team_id = team_id;
+
+      // Nếu là rescue_team → chỉ xem requests của team mình
+      if (user && user.role === "rescue_team") {
+        const myTeam = await db.RescueTeam.findOne({
+          where: { user_id: user.id },
+        });
+        if (!myTeam) {
+          // Không có team → trả về rỗng
+          return {
+            requests: [],
+            pagination: {
+              page: parseInt(page),
+              limit: parseInt(limit),
+              total: 0,
+              totalPages: 0,
+            },
+          };
+        }
+        where.team_id = myTeam.id;
+      } else if (team_id) {
+        // Với role khác, cho phép filter theo team_id nếu truyền vào
+        where.team_id = team_id;
+      }
 
       const { count, rows } = await this.VehicleRequestModel.findAndCountAll({
         where,
@@ -118,11 +141,9 @@ class VehicleRequestService {
         throw new Error("Missing required fields");
       }
 
-      // Kiểm tra rescue request tồn tại
       const rescueRequest = await db.RescueRequest.findByPk(rescue_request_id);
       if (!rescueRequest) throw new Error("Rescue request not found");
 
-      // Kiểm tra team tồn tại
       const team = await db.RescueTeam.findByPk(team_id);
       if (!team) throw new Error("Team not found");
 
@@ -191,7 +212,6 @@ class VehicleRequestService {
 
       const updatedRequest = await this.getRequestById(id);
 
-      // Gửi push notification cho rescue team
       try {
         const UserService = require("./user");
         const team = await db.RescueTeam.findByPk(updatedRequest.team_id);
@@ -257,15 +277,8 @@ class VehicleRequestService {
       }
 
       await transaction(async (t) => {
-        // Cập nhật status request
-        await request.update(
-          {
-            status: "returned",
-          },
-          { transaction: t },
-        );
+        await request.update({ status: "returned" }, { transaction: t });
 
-        // Trả phương tiện về available
         await this.VehicleModel.update(
           {
             status: "available",
@@ -285,9 +298,6 @@ class VehicleRequestService {
     }
   }
 
-  /**
-   * Rescue team báo cáo đã trả xe (chỉ đội được cấp xe mới gọi được)
-   */
   static async reportReturnByTeam(id, userId) {
     try {
       const RescueTeamService = require("./rescue_team");
@@ -305,10 +315,7 @@ class VehicleRequestService {
       }
 
       await transaction(async (t) => {
-        await request.update(
-          { status: "returned" },
-          { transaction: t },
-        );
+        await request.update({ status: "returned" }, { transaction: t });
         await this.VehicleModel.update(
           {
             status: "available",

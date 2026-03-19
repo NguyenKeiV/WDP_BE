@@ -9,10 +9,12 @@ class VehicleRequestController {
         (k) => filters[k] === undefined && delete filters[k],
       );
 
+      // Sửa: truyền req.user để service tự filter theo role
       const result = await VehicleRequestService.getAllRequests(
         filters,
         page,
         limit,
+        req.user, // <-- thêm dòng này
       );
       res.status(200).json({
         success: true,
@@ -21,13 +23,11 @@ class VehicleRequestController {
         pagination: result.pagination,
       });
     } catch (error) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Failed to retrieve vehicle requests",
-          error: error.message,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Failed to retrieve vehicle requests",
+        error: error.message,
+      });
     }
   }
 
@@ -43,13 +43,11 @@ class VehicleRequestController {
     } catch (error) {
       const statusCode =
         error.message === "Vehicle request not found" ? 404 : 400;
-      res
-        .status(statusCode)
-        .json({
-          success: false,
-          message: "Failed to retrieve vehicle request",
-          error: error.message,
-        });
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to retrieve vehicle request",
+        error: error.message,
+      });
     }
   }
 
@@ -66,13 +64,11 @@ class VehicleRequestController {
         data: request.toJSON(),
       });
     } catch (error) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Failed to create vehicle request",
-          error: error.message,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Failed to create vehicle request",
+        error: error.message,
+      });
     }
   }
 
@@ -102,13 +98,11 @@ class VehicleRequestController {
     } catch (error) {
       const statusCode =
         error.message === "Vehicle request not found" ? 404 : 400;
-      res
-        .status(statusCode)
-        .json({
-          success: false,
-          message: "Failed to approve vehicle request",
-          error: error.message,
-        });
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to approve vehicle request",
+        error: error.message,
+      });
     }
   }
 
@@ -138,13 +132,11 @@ class VehicleRequestController {
     } catch (error) {
       const statusCode =
         error.message === "Vehicle request not found" ? 404 : 400;
-      res
-        .status(statusCode)
-        .json({
-          success: false,
-          message: "Failed to reject vehicle request",
-          error: error.message,
-        });
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to reject vehicle request",
+        error: error.message,
+      });
     }
   }
 
@@ -162,13 +154,11 @@ class VehicleRequestController {
     } catch (error) {
       const statusCode =
         error.message === "Vehicle request not found" ? 404 : 400;
-      res
-        .status(statusCode)
-        .json({
-          success: false,
-          message: "Failed to return vehicles",
-          error: error.message,
-        });
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to return vehicles",
+        error: error.message,
+      });
     }
   }
 
@@ -177,10 +167,14 @@ class VehicleRequestController {
       const { id } = req.params;
       const userId = req.user.id;
 
-      const request = await VehicleRequestService.reportReturnByTeam(id, userId);
+      const request = await VehicleRequestService.reportReturnByTeam(
+        id,
+        userId,
+      );
       res.status(200).json({
         success: true,
-        message: "Báo cáo thu hồi xe thành công. Phương tiện đã được trả về kho.",
+        message:
+          "Báo cáo thu hồi xe thành công. Phương tiện đã được trả về kho.",
         data: request.toJSON(),
       });
     } catch (error) {

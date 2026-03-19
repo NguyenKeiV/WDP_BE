@@ -8,6 +8,7 @@ const {
 } = require("../middlewares/auth");
 const UserService = require("../services/user");
 
+// Sửa: thêm rescue_team vào danh sách được phép xem
 const requireViewAccess = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -19,24 +20,25 @@ const requireViewAccess = async (req, res, next) => {
     const token = authHeader.replace("Bearer ", "");
     const user = await UserService.verifyToken(token);
     req.user = user;
-    if (!["admin", "coordinator", "manager"].includes(user.role)) {
+    // Thêm "rescue_team" vào đây
+    if (
+      !["admin", "coordinator", "manager", "rescue_team"].includes(user.role)
+    ) {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
     next();
   } catch (error) {
-    res
-      .status(401)
-      .json({
-        success: false,
-        message: "Authentication failed",
-        error: error.message,
-      });
+    res.status(401).json({
+      success: false,
+      message: "Authentication failed",
+      error: error.message,
+    });
   }
 };
 
 const router = express.Router();
 
-// Xem danh sách: admin + coordinator + manager
+// Xem danh sách: admin + coordinator + manager + rescue_team
 router.get("/", requireViewAccess, VehicleRequestController.getAllRequests);
 router.get("/:id", requireViewAccess, VehicleRequestController.getRequestById);
 
