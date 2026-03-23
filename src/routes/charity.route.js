@@ -13,13 +13,16 @@ router.get("/history/:phone", CharityController.getHistory);
 
 // --- Charity campaigns ---
 // Manager tạo đợt quyên góp (web)
-router.post("/campaigns", requireManager, CharityCampaignController.createCampaign);
+router.post(
+  "/campaigns",
+  requireManager,
+  CharityCampaignController.createCampaign,
+);
 
-// Mobile/user xem danh sách
-router.get("/campaigns", CharityCampaignController.getCampaigns);
+// Mobile/user xem danh sách (public)
+router.get("/campaigns", CharityCampaignController.getAllCampaigns);
 
-// Mobile/user xem chi tiết
+// Mobile/user xem chi tiết (public)
 router.get("/campaigns/:id", CharityCampaignController.getCampaignById);
 
 module.exports = router;
-

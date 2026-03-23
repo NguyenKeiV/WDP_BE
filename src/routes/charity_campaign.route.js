@@ -1,7 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
-const CharityCampaignController = require("../controllers/charity_campaign");
+const CharityCampaignController = require("../controllers/charity_campaigns");
 const { requireAuth, requireManager } = require("../middlewares/auth");
 
 const router = express.Router();

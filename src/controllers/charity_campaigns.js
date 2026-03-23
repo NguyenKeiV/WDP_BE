@@ -1,4 +1,4 @@
-const CharityCampaignService = require("../services/charity_campaign");
+const CharityCampaignService = require("../services/charity_campaigns");
 
 class CharityCampaignController {
   static async getActiveCampaign(req, res) {
@@ -17,6 +17,18 @@ class CharityCampaignController {
       res.status(200).json({ success: true, ...result });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  // THÊM MỚI: lấy chi tiết 1 campaign theo id
+  static async getCampaignById(req, res) {
+    try {
+      const { id } = req.params;
+      const campaign = await CharityCampaignService.getCampaignById(id);
+      res.status(200).json({ success: true, data: campaign.toJSON() });
+    } catch (error) {
+      const status = error.message === "Campaign not found" ? 404 : 400;
+      res.status(status).json({ success: false, error: error.message });
     }
   }
 

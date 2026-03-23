@@ -45,20 +45,17 @@ class CharityCampaignService {
   static async createCampaign(data, managerId) {
     const { title, description, address, image_url, start_date, end_date } =
       data;
-
     if (!title || !start_date || !end_date) {
       throw new Error("title, start_date, end_date are required");
     }
     if (new Date(start_date) >= new Date(end_date)) {
       throw new Error("end_date must be after start_date");
     }
-
     // Kết thúc campaign đang active nếu có
     await db.CharityCampaign.update(
       { status: "ended" },
       { where: { status: "active" } },
     );
-
     const campaign = await db.CharityCampaign.create({
       title,
       description,
@@ -69,7 +66,6 @@ class CharityCampaignService {
       status: "active",
       created_by: managerId,
     });
-
     return campaign;
   }
 

@@ -76,18 +76,19 @@ class RescueTeamService {
 
   /**
    * Get all teams with filters
+   * SỬA: bỏ province_city (không có trong model), chỉ filter theo status, specialization, district
    */
   static async getAllTeams(filters = {}, page = 1, limit = 20) {
     try {
-      const { status, specialization, province_city } = filters;
+      // SỬA: đổi province_city → district (đúng với model)
+      const { status, specialization, district } = filters;
 
       const offset = (page - 1) * limit;
 
-      // Build where clause
       const where = {};
       if (status) where.status = status;
       if (specialization) where.specialization = specialization;
-      if (province_city) where.province_city = province_city;
+      if (district) where.district = district; // SỬA: province_city → district
 
       const { count, rows: teams } = await this.RescueTeamModel.findAndCountAll(
         {
@@ -95,6 +96,13 @@ class RescueTeamService {
           limit: parseInt(limit),
           offset: parseInt(offset),
           order: [["created_at", "DESC"]],
+          include: [
+            {
+              model: db.User,
+              as: "leader_account",
+              attributes: ["id", "username", "email"],
+            },
+          ],
         },
       );
 
@@ -115,14 +123,15 @@ class RescueTeamService {
 
   /**
    * Get available teams
-   * Returns teams with status 'available' in specific province/city
+   * SỬA: bỏ province_city, thay bằng district
    */
-  static async getAvailableTeams(province_city = null, specialization = null) {
+  static async getAvailableTeams(district = null, specialization = null) {
     try {
       const where = { status: "available" };
 
-      if (province_city) {
-        where.province_city = province_city;
+      // SỬA: province_city → district
+      if (district) {
+        where.district = district;
       }
 
       if (specialization) {
@@ -132,10 +141,17 @@ class RescueTeamService {
       const teams = await this.RescueTeamModel.findAll({
         where,
         order: [["created_at", "ASC"]],
+        include: [
+          {
+            model: db.User,
+            as: "leader_account",
+            attributes: ["id", "username", "email"],
+          },
+        ],
       });
 
       console.log(
-        `🔍 Found ${teams.length} available teams${province_city ? ` in ${province_city}` : ""}${specialization ? ` with specialization ${specialization}` : ""}`,
+        `🔍 Found ${teams.length} available teams${district ? ` in district ${district}` : ""}${specialization ? ` with specialization ${specialization}` : ""}`,
       );
 
       return teams.map((team) => team.toJSON());
@@ -156,6 +172,11 @@ class RescueTeamService {
             as: "assigned_requests",
             where: { status: "on_mission" },
             required: false,
+          },
+          {
+            model: db.User,
+            as: "leader_account",
+            attributes: ["id", "username", "email"],
           },
         ],
       });
@@ -259,7 +280,6 @@ class RescueTeamService {
     try {
       const team = await this.getTeamById(id);
 
-      // Check if team is currently on mission
       if (team.status === "on_mission") {
         throw new Error("Cannot delete team that is currently on mission");
       }
@@ -299,7 +319,6 @@ class RescueTeamService {
   static async setTeamAvailable(teamId) {
     try {
       const team = await this.getTeamById(teamId);
-
       await team.update({ status: "available" });
       console.log(`✅ Team ${team.name} is now AVAILABLE`);
       return team;
