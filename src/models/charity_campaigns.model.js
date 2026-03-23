@@ -6,63 +6,54 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
-        allowNull: false,
       },
-      name: {
-        type: DataTypes.STRING(200),
+      title: {
+        type: DataTypes.STRING(255),
         allowNull: false,
+        validate: { notEmpty: true },
       },
-      manager_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
+      description: {
+        type: DataTypes.TEXT,
+        allowNull: true,
       },
       address: {
         type: DataTypes.TEXT,
-        allowNull: false,
-      },
-      // Chỉ cần "thời gian" để hiển thị; dùng DATEONLY cho phù hợp FE hiện tại.
-      start_at: {
-        type: DataTypes.DATEONLY,
-        allowNull: false,
-      },
-      end_at: {
-        type: DataTypes.DATEONLY,
         allowNull: true,
       },
-      reason: {
+      image_url: {
         type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      start_date: {
+        type: DataTypes.DATE,
         allowNull: false,
       },
-      poster_urls: {
-        type: DataTypes.JSON,
-        allowNull: true,
-        defaultValue: [],
+      end_date: {
+        type: DataTypes.DATE,
+        allowNull: false,
       },
       status: {
-        type: DataTypes.ENUM("active", "inactive"),
+        type: DataTypes.ENUM("active", "ended"),
         allowNull: false,
         defaultValue: "active",
+      },
+      created_by: {
+        type: DataTypes.UUID,
+        allowNull: true,
       },
     },
     {
       tableName: "charity_campaigns",
       timestamps: true,
-      paranoid: true,
-      indexes: [
-        { fields: ["status"] },
-        { fields: ["start_at"] },
-        { fields: ["manager_id"] },
-      ],
     },
   );
 
   CharityCampaign.associate = function (models) {
     CharityCampaign.belongsTo(models.User, {
-      foreignKey: "manager_id",
-      as: "manager",
+      foreignKey: "created_by",
+      as: "creator",
     });
   };
 
   return CharityCampaign;
 };
-
