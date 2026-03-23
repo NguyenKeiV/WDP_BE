@@ -38,7 +38,8 @@ class CharityCampaignController {
 
       let image_url = req.body.image_url || null;
       if (req.file) {
-        image_url = `/uploads/${req.file.filename}`;
+        // SỬA: Cloudinary trả URL trong req.file.path
+        image_url = req.file.path;
       }
 
       const campaign = await CharityCampaignService.createCampaign(
