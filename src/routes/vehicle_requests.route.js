@@ -40,6 +40,12 @@ const router = express.Router();
 
 // Xem danh sách: admin + coordinator + manager + rescue_team
 router.get("/", requireViewAccess, VehicleRequestController.getAllRequests);
+// Đội cứu hộ xem yêu cầu xe của đội mình (để báo cáo thu hồi)
+router.get(
+  "/my-team-requests",
+  requireRescueTeam,
+  VehicleRequestController.getMyTeamRequests,
+);
 router.get("/:id", requireViewAccess, VehicleRequestController.getRequestById);
 
 // Coordinator tạo yêu cầu

@@ -111,6 +111,17 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: [],
       },
+      mission_incomplete_reason: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: "Lý do đội báo cáo không hoàn thành khi đang on_mission",
+      },
+      mission_incomplete_media_urls: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+        comment: "Ảnh minh chứng báo cáo không hoàn thành",
+      },
     },
     {
       tableName: "rescue_requests",

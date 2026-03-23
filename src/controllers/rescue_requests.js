@@ -351,6 +351,43 @@ class RescueRequestController {
     }
   }
 
+  static async reportMissionIncomplete(req, res) {
+    try {
+      const { id } = req.params;
+      const { reason, failure_media_urls } = req.body;
+      if (!reason || !String(reason).trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "reason is required",
+        });
+      }
+      const request = await RescueRequestService.reportMissionIncomplete(
+        id,
+        req.user.id,
+        reason,
+        failure_media_urls,
+      );
+      res.status(200).json({
+        success: true,
+        message: "Đã gửi báo cáo không hoàn thành nhiệm vụ.",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("not assigned to your team") ||
+              error.message.includes("Not allowed")
+            ? 403
+            : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to report incomplete mission",
+        error: error.message,
+      });
+    }
+  }
+
   static async updateRescueRequest(req, res) {
     try {
       const { id } = req.params;

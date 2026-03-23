@@ -53,6 +53,11 @@ router.post(
   requireAdminOrCoordinatorOrRescueTeam,
   RescueRequestController.completeMission,
 );
+router.post(
+  "/:id/report-mission-incomplete",
+  requireAdminOrCoordinatorOrRescueTeam,
+  RescueRequestController.reportMissionIncomplete,
+);
 router.put("/:id", requireAuth, RescueRequestController.updateRescueRequest);
 router.delete("/:id", requireAuth, RescueRequestController.deleteRescueRequest);
 

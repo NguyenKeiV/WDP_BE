@@ -562,6 +562,139 @@ class RescueRequestService {
     }
   }
 
+  /**
+   * Đội (đang on_mission) báo cáo không hoàn thành — trả yêu cầu về pending_verification,
+   * gỡ gán đội, đưa đội về available, lưu lý do + ảnh, thông báo điều phối.
+   */
+  static async reportMissionIncomplete(
+    requestId,
+    userId,
+    reason,
+    failureMediaUrls = [],
+  ) {
+    if (!reason || !String(reason).trim()) {
+      throw new Error("Reason is required");
+    }
+    const user = await this.UserModel.findByPk(userId);
+    if (!user) throw new Error("User not found");
+    if (!["rescue_team", "admin"].includes(user.role)) {
+      throw new Error(
+        "Only rescue team or admin can report incomplete mission",
+      );
+    }
+
+    const request = await this.getRescueRequestById(requestId);
+    if (request.status !== "on_mission") {
+      throw new Error(
+        `Cannot report incomplete for status '${request.status}'`,
+      );
+    }
+    if (!request.assigned_team_id) {
+      throw new Error("No team assigned to this request");
+    }
+
+    const RescueTeamService = require("./rescue_team");
+    let team = await db.RescueTeam.findOne({ where: { user_id: userId } });
+
+    if (user.role === "rescue_team") {
+      if (!team) throw new Error("No team associated with this account");
+      if (request.assigned_team_id !== team.id) {
+        throw new Error("This mission is not assigned to your team");
+      }
+    } else if (user.role === "admin") {
+      team = await RescueTeamService.getTeamById(request.assigned_team_id);
+    } else {
+      throw new Error("Not allowed");
+    }
+
+    const ts = new Date().toISOString();
+    const reasonTrim = String(reason).trim();
+    const noteBlock = [
+      request.notes,
+      `--- Báo cáo không hoàn thành (${ts}) ---`,
+      reasonTrim,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const mediaArr = Array.isArray(failureMediaUrls) ? failureMediaUrls : [];
+
+    const coordinatorIdForNotify = request.assigned_by;
+
+    const result = await transaction(async (t) => {
+      await request.update(
+        {
+          status: "pending_verification",
+          notes: noteBlock,
+          mission_incomplete_reason: reasonTrim,
+          mission_incomplete_media_urls: mediaArr,
+          assigned_team_id: null,
+          assigned_at: null,
+        },
+        { transaction: t },
+      );
+      await team.update({ status: "available" }, { transaction: t });
+      return { request, team };
+    });
+
+    try {
+      const UserService = require("./user");
+      if (coordinatorIdForNotify) {
+        const coordinator = await db.User.findByPk(coordinatorIdForNotify);
+        if (coordinator?.expo_push_token) {
+          await UserService.sendPushNotification(
+            coordinator.expo_push_token,
+            "⚠️ Đội báo cáo không hoàn thành",
+            `${team.name} báo cáo không hoàn thành nhiệm vụ tại ${request.district}.`,
+            {
+              type: "mission_incomplete",
+              rescue_request_id: requestId,
+              team_name: team.name,
+            },
+          );
+        }
+        try {
+          const { getIO } = require("../config/socket");
+          getIO()
+            .to(`user:${coordinatorIdForNotify}`)
+            .emit("mission_incomplete", {
+              rescue_request_id: requestId,
+              district: request.district,
+              team_name: team.name,
+              reason: reasonTrim,
+              timestamp: new Date().toISOString(),
+            });
+        } catch (e) {
+          console.error("Socket emit mission_incomplete:", e);
+        }
+      }
+    } catch (e) {
+      console.error("Notify coordinator mission_incomplete:", e);
+    }
+
+    await result.request.reload({
+      include: [
+        {
+          model: this.UserModel,
+          as: "creator",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: this.UserModel,
+          as: "verifier",
+          attributes: ["id", "username", "email", "role"],
+        },
+        {
+          model: this.UserModel,
+          as: "assigner",
+          attributes: ["id", "username", "email", "role"],
+        },
+        { model: db.RescueTeam, as: "assigned_team" },
+      ],
+    });
+    return result.request;
+  }
+
   static async linkGuestRequestsToUser(requestIds, userId) {
     if (!requestIds || !Array.isArray(requestIds) || requestIds.length === 0) {
       return { linked: 0, request_ids: [] };

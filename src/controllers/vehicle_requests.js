@@ -1,6 +1,41 @@
 const VehicleRequestService = require("../services/vehicle_request");
+const RescueTeamService = require("../services/rescue_team");
 
 class VehicleRequestController {
+  /** Đội cứu hộ: lấy danh sách yêu cầu xe của đội (pending + approved) để xem và báo cáo thu hồi */
+  static async getMyTeamRequests(req, res) {
+    try {
+      const team = await RescueTeamService.getTeamByUserId(req.user.id);
+      if (!team) {
+        return res.status(404).json({
+          success: false,
+          message: "No team associated with this account",
+          error: "No team associated with this account",
+        });
+      }
+      const { page = 1, limit = 20, status } = req.query;
+      const filters = { team_id: team.id };
+      if (status) filters.status = status;
+      const result = await VehicleRequestService.getAllRequests(
+        filters,
+        parseInt(page) || 1,
+        parseInt(limit) || 20,
+      );
+      res.status(200).json({
+        success: true,
+        message: "My team vehicle requests retrieved successfully",
+        data: result.requests,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: "Failed to retrieve my team vehicle requests",
+        error: error.message,
+      });
+    }
+  }
+
   static async getAllRequests(req, res) {
     try {
       const { page = 1, limit = 20, status, team_id } = req.query;
