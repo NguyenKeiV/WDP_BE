@@ -35,21 +35,15 @@ class RescueRequestService {
       ) {
         throw new Error("Missing required fields");
       }
-
       if (!["rescue", "relief"].includes(category)) {
         throw new Error("category must be 'rescue' or 'relief'");
       }
-
-      if (location_type === "gps") {
-        if (!latitude || !longitude) {
-          throw new Error("GPS coordinates are required for GPS location type");
-        }
-      } else if (location_type === "manual") {
-        if (!address) {
-          throw new Error("Address is required for manual location type");
-        }
+      if (location_type === "gps" && (!latitude || !longitude)) {
+        throw new Error("GPS coordinates are required for GPS location type");
       }
-
+      if (location_type === "manual" && !address) {
+        throw new Error("Address is required for manual location type");
+      }
       if (num_people && num_people < 1) {
         throw new Error("num_people must be at least 1");
       }
@@ -141,7 +135,8 @@ class RescueRequestService {
       const missions = await this.RescueRequestModel.findAll({
         where: {
           assigned_team_id: team.id,
-          status: { [Op.in]: ["on_mission", "completed"] },
+          // Thêm "assigned" vào danh sách status hiển thị cho team
+          status: { [Op.in]: ["assigned", "on_mission", "completed"] },
         },
         include: [
           {
@@ -268,6 +263,7 @@ class RescueRequestService {
     }
   }
 
+  // SỬA: assignTeamToRequest giờ chuyển sang "assigned" thay vì "on_mission"
   static async assignTeamToRequest(requestId, teamId, coordinatorId) {
     try {
       const request = await this.getRescueRequestById(requestId);
@@ -288,20 +284,37 @@ class RescueRequestService {
           `Team '${team.name}' is not available. Current status: ${team.status}`,
         );
       }
-      const result = await transaction(async (t) => {
-        await request.update(
-          {
-            status: "on_mission",
-            assigned_team_id: teamId,
-            assigned_at: new Date(),
-            assigned_by: coordinatorId,
-          },
-          { transaction: t },
-        );
-        await team.update({ status: "on_mission" }, { transaction: t });
-        return { request, team };
+
+      // SỬA: chuyển sang "assigned" thay vì "on_mission"
+      // Team chưa bị lock, chờ team xác nhận mới chuyển sang on_mission
+      await request.update({
+        status: "assigned",
+        assigned_team_id: teamId,
+        assigned_at: new Date(),
+        assigned_by: coordinatorId,
+        team_reject_reason: null,
       });
-      await result.request.reload({
+
+      // Gửi push notification cho team lead
+      try {
+        const UserService = require("./user");
+        const teamUser = await db.User.findByPk(team.user_id);
+        if (teamUser?.expo_push_token) {
+          await UserService.sendPushNotification(
+            teamUser.expo_push_token,
+            "🚨 Nhiệm vụ mới được giao",
+            `Đội ${team.name} được phân công nhiệm vụ tại ${request.district}. Vui lòng xác nhận hoặc từ chối.`,
+            {
+              type: "mission_assigned",
+              rescue_request_id: requestId,
+            },
+          );
+        }
+      } catch (e) {
+        console.error("Failed to send push notification to team:", e);
+      }
+
+      await request.reload({
         include: [
           {
             model: this.UserModel,
@@ -321,7 +334,146 @@ class RescueRequestService {
           { model: db.RescueTeam, as: "assigned_team" },
         ],
       });
+      return request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // THÊM MỚI: Team xác nhận nhận nhiệm vụ → chuyển sang on_mission
+  static async teamAcceptMission(requestId, userId) {
+    try {
+      const team = await db.RescueTeam.findOne({ where: { user_id: userId } });
+      if (!team) throw new Error("No team associated with this account");
+
+      const request = await this.getRescueRequestById(requestId);
+
+      if (request.status !== "assigned") {
+        throw new Error(
+          `Cannot accept mission with status '${request.status}'.`,
+        );
+      }
+      if (request.assigned_team_id !== team.id) {
+        throw new Error("This mission is not assigned to your team");
+      }
+
+      const result = await transaction(async (t) => {
+        await request.update({ status: "on_mission" }, { transaction: t });
+        await team.update({ status: "on_mission" }, { transaction: t });
+        return { request, team };
+      });
+
+      // Gửi push notification cho coordinator
+      try {
+        const UserService = require("./user");
+        if (request.assigned_by) {
+          const coordinator = await db.User.findByPk(request.assigned_by);
+          if (coordinator?.expo_push_token) {
+            await UserService.sendPushNotification(
+              coordinator.expo_push_token,
+              "✅ Đội đã nhận nhiệm vụ",
+              `Đội ${team.name} đã xác nhận nhận nhiệm vụ tại ${request.district}.`,
+              {
+                type: "mission_accepted",
+                rescue_request_id: requestId,
+              },
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Failed to send push notification to coordinator:", e);
+      }
+
+      await result.request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "assigner",
+            attributes: ["id", "username", "email", "role"],
+          },
+          { model: db.RescueTeam, as: "assigned_team" },
+        ],
+      });
       return result.request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // THÊM MỚI: Team từ chối nhiệm vụ → quay về pending_verification
+  static async teamRejectMission(requestId, userId, reason) {
+    try {
+      if (!reason || reason.trim().length === 0) {
+        throw new Error("Rejection reason is required");
+      }
+
+      const team = await db.RescueTeam.findOne({ where: { user_id: userId } });
+      if (!team) throw new Error("No team associated with this account");
+
+      const request = await this.getRescueRequestById(requestId);
+
+      if (request.status !== "assigned") {
+        throw new Error(
+          `Cannot reject mission with status '${request.status}'.`,
+        );
+      }
+      if (request.assigned_team_id !== team.id) {
+        throw new Error("This mission is not assigned to your team");
+      }
+
+      // Quay về pending_verification, bỏ assigned_team, lưu lý do từ chối
+      await request.update({
+        status: "pending_verification",
+        assigned_team_id: null,
+        assigned_at: null,
+        assigned_by: request.assigned_by, // giữ lại để biết coordinator nào
+        team_reject_reason: reason.trim(),
+      });
+
+      // Gửi push notification cho coordinator
+      try {
+        const UserService = require("./user");
+        if (request.assigned_by) {
+          const coordinator = await db.User.findByPk(request.assigned_by);
+          if (coordinator?.expo_push_token) {
+            await UserService.sendPushNotification(
+              coordinator.expo_push_token,
+              "❌ Đội từ chối nhiệm vụ",
+              `Đội ${team.name} từ chối nhiệm vụ tại ${request.district}. Lý do: ${reason}`,
+              {
+                type: "mission_rejected_by_team",
+                rescue_request_id: requestId,
+                team_name: team.name,
+                reason,
+              },
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Failed to send push notification to coordinator:", e);
+      }
+
+      await request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "assigner",
+            attributes: ["id", "username", "email", "role"],
+          },
+          { model: db.RescueTeam, as: "assigned_team" },
+        ],
+      });
+      return request;
     } catch (error) {
       throw error;
     }
@@ -395,10 +547,6 @@ class RescueRequestService {
     }
   }
 
-  /**
-   * Gắn các yêu cầu guest (user_id = null) vào tài khoản user vừa đăng nhập.
-   * Chỉ gắn được những request chưa có chủ (user_id IS NULL).
-   */
   static async linkGuestRequestsToUser(requestIds, userId) {
     if (!requestIds || !Array.isArray(requestIds) || requestIds.length === 0) {
       return { linked: 0, request_ids: [] };
@@ -406,15 +554,9 @@ class RescueRequestService {
     const ids = [...new Set(requestIds)].filter(Boolean);
     const updated = await this.RescueRequestModel.update(
       { user_id: userId },
-      {
-        where: {
-          id: ids,
-          user_id: null,
-        },
-      },
+      { where: { id: ids, user_id: null } },
     );
-    const linked = updated[0] || 0;
-    return { linked, request_ids: ids };
+    return { linked: updated[0] || 0, request_ids: ids };
   }
 
   static async updateRescueRequest(id, updateData, userId = null) {

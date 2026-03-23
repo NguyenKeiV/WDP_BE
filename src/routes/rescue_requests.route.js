@@ -18,11 +18,7 @@ router.get(
 );
 router.get("/", optionalAuth, RescueRequestController.getAllRescueRequests);
 router.post("/", optionalAuth, RescueRequestController.createRescueRequest);
-router.post(
-  "/link-to-me",
-  requireAuth,
-  RescueRequestController.linkToMe,
-);
+router.post("/link-to-me", requireAuth, RescueRequestController.linkToMe);
 router.get("/:id", RescueRequestController.getRescueRequestById);
 router.post(
   "/:id/approve",
@@ -39,6 +35,19 @@ router.post(
   requireAdminOrCoordinator,
   RescueRequestController.assignTeam,
 );
+
+// THÊM MỚI: Team xác nhận / từ chối nhiệm vụ
+router.post(
+  "/:id/team-accept",
+  requireRescueTeam,
+  RescueRequestController.teamAcceptMission,
+);
+router.post(
+  "/:id/team-reject",
+  requireRescueTeam,
+  RescueRequestController.teamRejectMission,
+);
+
 router.post(
   "/:id/complete",
   requireAdminOrCoordinatorOrRescueTeam,

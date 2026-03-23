@@ -9,11 +9,13 @@ class RescueRequestController {
         requestData,
         userId,
       );
-      res.status(201).json({
-        success: true,
-        message: "Rescue request created successfully",
-        data: rescueRequest.toJSON(),
-      });
+      res
+        .status(201)
+        .json({
+          success: true,
+          message: "Rescue request created successfully",
+          data: rescueRequest.toJSON(),
+        });
     } catch (error) {
       res
         .status(400)
@@ -33,17 +35,21 @@ class RescueRequestController {
         requestIds,
         userId,
       );
-      res.status(200).json({
-        success: true,
-        message: `Đã gắn ${result.linked} yêu cầu vào tài khoản của bạn`,
-        data: result,
-      });
+      res
+        .status(200)
+        .json({
+          success: true,
+          message: `Đã gắn ${result.linked} yêu cầu vào tài khoản của bạn`,
+          data: result,
+        });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: "Failed to link requests",
-        error: error.message,
-      });
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "Failed to link requests",
+          error: error.message,
+        });
     }
   }
 
@@ -88,12 +94,14 @@ class RescueRequestController {
         page,
         limit,
       );
-      res.status(200).json({
-        success: true,
-        message: "Rescue requests retrieved successfully",
-        data: result.requests,
-        pagination: result.pagination,
-      });
+      res
+        .status(200)
+        .json({
+          success: true,
+          message: "Rescue requests retrieved successfully",
+          data: result.requests,
+          pagination: result.pagination,
+        });
     } catch (error) {
       res
         .status(400)
@@ -216,7 +224,7 @@ class RescueRequestController {
         .status(200)
         .json({
           success: true,
-          message: "Team assigned successfully.",
+          message: "Team assigned. Waiting for team confirmation.",
           data: request.toJSON(),
         });
     } catch (error) {
@@ -233,6 +241,77 @@ class RescueRequestController {
         .json({
           success: false,
           message: "Failed to assign team",
+          error: error.message,
+        });
+    }
+  }
+
+  // THÊM MỚI: Team xác nhận nhận nhiệm vụ
+  static async teamAcceptMission(req, res) {
+    try {
+      const { id } = req.params;
+      const request = await RescueRequestService.teamAcceptMission(
+        id,
+        req.user.id,
+      );
+      res
+        .status(200)
+        .json({
+          success: true,
+          message: "Đã xác nhận nhận nhiệm vụ.",
+          data: request.toJSON(),
+        });
+    } catch (error) {
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("not assigned to your team")
+            ? 403
+            : 400;
+      res
+        .status(statusCode)
+        .json({
+          success: false,
+          message: "Failed to accept mission",
+          error: error.message,
+        });
+    }
+  }
+
+  // THÊM MỚI: Team từ chối nhiệm vụ
+  static async teamRejectMission(req, res) {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      if (!reason || !reason.trim()) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Lý do từ chối là bắt buộc" });
+      }
+      const request = await RescueRequestService.teamRejectMission(
+        id,
+        req.user.id,
+        reason,
+      );
+      res
+        .status(200)
+        .json({
+          success: true,
+          message: "Đã từ chối nhiệm vụ. Yêu cầu quay về chờ phân công.",
+          data: request.toJSON(),
+        });
+    } catch (error) {
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("not assigned to your team")
+            ? 403
+            : 400;
+      res
+        .status(statusCode)
+        .json({
+          success: false,
+          message: "Failed to reject mission",
           error: error.message,
         });
     }

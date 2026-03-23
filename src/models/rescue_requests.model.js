@@ -11,13 +11,10 @@ module.exports = (sequelize, DataTypes) => {
       category: {
         type: DataTypes.ENUM("rescue", "relief"),
         allowNull: false,
-        comment:
-          "Phân loại: rescue (cứu hộ người/tài sản) | relief (cứu trợ nhu yếu phẩm)",
       },
       district: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        comment: "Quận/Huyện tại TP.HCM",
       },
       phone_number: {
         type: DataTypes.STRING(20),
@@ -27,41 +24,34 @@ module.exports = (sequelize, DataTypes) => {
       description: {
         type: DataTypes.TEXT,
         allowNull: false,
-        validate: {
-          notEmpty: true,
-          len: [10, 5000],
-        },
-        comment: "Mô tả tình huống",
+        validate: { notEmpty: true, len: [10, 5000] },
       },
       num_people: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 1,
         validate: { min: 1 },
-        comment: "Số người gặp nạn",
       },
       priority: {
         type: DataTypes.ENUM("low", "medium", "high", "urgent"),
         allowNull: true,
-        comment: "Mức độ ưu tiên",
       },
       status: {
         type: DataTypes.ENUM(
           "new",
           "pending_verification",
           "verified",
+          "assigned", // ← THÊM MỚI: chờ team xác nhận
           "on_mission",
           "completed",
           "rejected",
         ),
         allowNull: false,
         defaultValue: "new",
-        comment: "Trạng thái xử lý",
       },
       location_type: {
         type: DataTypes.ENUM("gps", "manual"),
         allowNull: false,
-        comment: "Loại vị trí: GPS hoặc nhập tay",
       },
       latitude: {
         type: DataTypes.DECIMAL(10, 8),
@@ -76,7 +66,6 @@ module.exports = (sequelize, DataTypes) => {
       address: {
         type: DataTypes.TEXT,
         allowNull: true,
-        comment: "Địa chỉ nhập tay",
       },
       media_urls: {
         type: DataTypes.JSON,
@@ -86,7 +75,6 @@ module.exports = (sequelize, DataTypes) => {
       user_id: {
         type: DataTypes.UUID,
         allowNull: true,
-        comment: "NULL nếu guest",
       },
       verified_by: {
         type: DataTypes.UUID,
@@ -112,11 +100,16 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.UUID,
         allowNull: true,
       },
+      team_reject_reason: {
+        // ← THÊM MỚI: lý do team từ chối
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: "Lý do team từ chối nhiệm vụ",
+      },
       completion_media_urls: {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],
-        comment: "Ảnh báo cáo từ đội cứu hộ khi hoàn thành",
       },
     },
     {
