@@ -426,16 +426,15 @@ class RescueRequestService {
         throw new Error("This mission is not assigned to your team");
       }
 
-      // Quay về pending_verification, bỏ assigned_team, lưu lý do từ chối
       await request.update({
         status: "pending_verification",
         assigned_team_id: null,
         assigned_at: null,
-        assigned_by: request.assigned_by, // giữ lại để biết coordinator nào
+        assigned_by: request.assigned_by,
         team_reject_reason: reason.trim(),
       });
 
-      // Gửi push notification cho coordinator
+      // Push notification (giữ nguyên như cũ)
       try {
         const UserService = require("./user");
         if (request.assigned_by) {
@@ -452,6 +451,22 @@ class RescueRequestService {
                 reason,
               },
             );
+          }
+
+          // THÊM MỚI: emit socket cho coordinator trên web
+          try {
+            const { getIO } = require("../config/socket");
+            getIO()
+              .to(`user:${request.assigned_by}`)
+              .emit("mission_rejected_by_team", {
+                rescue_request_id: requestId,
+                district: request.district,
+                team_name: team.name,
+                reason: reason.trim(),
+                timestamp: new Date().toISOString(),
+              });
+          } catch (e) {
+            console.error("Failed to emit socket:", e);
           }
         }
       } catch (e) {

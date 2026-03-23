@@ -1,9 +1,12 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const http = require("http"); // THÊM
 
 const { env, validateEnv } = require("./src/config/env");
 const { initializeDatabase } = require("./src/config/database");
+const { initSocket } = require("./src/config/socket"); // SỬA đường dẫn
+
 validateEnv();
 
 const app = express();
@@ -29,25 +32,28 @@ app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use((err, req, res, next) => {
   console.error("Error:", err);
-
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-
   res.status(status).json({
     error: message,
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });
 
-// Initialize database and start server
+// THÊM: tạo http server từ express app
+const server = http.createServer(app);
+
 const startServer = async () => {
   try {
-    // Initialize Sequelize database
     await initializeDatabase();
     console.log("❤️  Database initialized successfully");
 
-    // Start server
-    app.listen(env.PORT, () => {
+    // THÊM: khởi tạo socket
+    initSocket(server);
+    console.log("🔌 Socket.io initialized");
+
+    // SỬA: dùng server.listen thay vì app.listen
+    server.listen(env.PORT, () => {
       console.log(`🚀 Server is running on port ${env.PORT}`);
       console.log(`📍 Environment: ${env.NODE_ENV}`);
       console.log(
@@ -63,5 +69,4 @@ const startServer = async () => {
   }
 };
 
-// Start the application
 startServer();
