@@ -135,8 +135,10 @@ class RescueRequestService {
       const missions = await this.RescueRequestModel.findAll({
         where: {
           assigned_team_id: team.id,
-          // Thêm "assigned" vào danh sách status hiển thị cho team
-          status: { [Op.in]: ["assigned", "on_mission", "completed"] },
+          // Bao gồm cả trạng thái chờ coordinator xác nhận báo cáo team (verified)
+          status: {
+            [Op.in]: ["assigned", "on_mission", "verified", "completed"],
+          },
         },
         include: [
           {
@@ -488,6 +490,178 @@ class RescueRequestService {
           { model: db.RescueTeam, as: "assigned_team" },
         ],
       });
+      return request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Team báo cáo đã/không thực hiện nhiệm vụ -> chờ coordinator xác nhận
+  // NOTE: dùng status "verified" làm trạng thái trung gian để tránh thay đổi schema enum.
+  static async teamReportExecution(
+    requestId,
+    userId,
+    { executed, reportNotes = null, reportMediaUrls = null } = {},
+  ) {
+    try {
+      if (typeof executed !== "boolean") {
+        throw new Error("'executed' must be a boolean");
+      }
+
+      const team = await db.RescueTeam.findOne({ where: { user_id: userId } });
+      if (!team) throw new Error("No team associated with this account");
+
+      const request = await this.getRescueRequestById(requestId);
+      if (request.status !== "on_mission") {
+        throw new Error(
+          `Cannot report execution for request with status '${request.status}'.`,
+        );
+      }
+      if (request.assigned_team_id !== team.id) {
+        throw new Error("This mission is not assigned to your team");
+      }
+
+      const normalizedReport = [
+        "--- Team execution report ---",
+        `executed: ${executed ? "yes" : "no"}`,
+        reportNotes ? `notes: ${reportNotes}` : null,
+        Array.isArray(reportMediaUrls) && reportMediaUrls.length > 0
+          ? `media:\n${reportMediaUrls.filter(Boolean).join("\n")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      if (executed) {
+        await request.update({
+          // Trạng thái trung gian: chờ coordinator xác nhận team đã thực hiện
+          status: "verified",
+          notes: `${request.notes || ""}\n${normalizedReport}`.trim(),
+        });
+      } else {
+        await transaction(async (t) => {
+          await request.update(
+            {
+              status: "pending_verification",
+              assigned_team_id: null,
+              assigned_at: null,
+              team_reject_reason: "Team reported cannot execute mission",
+              notes: `${request.notes || ""}\n${normalizedReport}`.trim(),
+            },
+            { transaction: t },
+          );
+          await team.update({ status: "available" }, { transaction: t });
+        });
+      }
+
+      await request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "assigner",
+            attributes: ["id", "username", "email", "role"],
+          },
+          { model: db.RescueTeam, as: "assigned_team" },
+        ],
+      });
+
+      return request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Coordinator/Admin xác nhận báo cáo thực hiện của team
+  static async confirmTeamExecution(
+    requestId,
+    coordinatorId,
+    { confirmed, confirmationNotes = null } = {},
+  ) {
+    try {
+      if (typeof confirmed !== "boolean") {
+        throw new Error("'confirmed' must be a boolean");
+      }
+
+      const coordinator = await this.UserModel.findByPk(coordinatorId);
+      if (!coordinator) throw new Error("Coordinator not found");
+      if (!["coordinator", "admin"].includes(coordinator.role)) {
+        throw new Error(
+          "Only coordinators or admins can confirm mission execution",
+        );
+      }
+
+      const request = await this.getRescueRequestById(requestId);
+      if (request.status !== "verified") {
+        throw new Error(
+          `Cannot confirm execution for request with status '${request.status}'.`,
+        );
+      }
+
+      const confirmationLine = [
+        "--- Coordinator confirmation ---",
+        `confirmed: ${confirmed ? "yes" : "no"}`,
+        confirmationNotes ? `notes: ${confirmationNotes}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      if (confirmed) {
+        await request.update({
+          status: "on_mission",
+          notes: `${request.notes || ""}\n${confirmationLine}`.trim(),
+        });
+      } else {
+        await transaction(async (t) => {
+          const assignedTeamId = request.assigned_team_id;
+
+          await request.update(
+            {
+              status: "pending_verification",
+              assigned_team_id: null,
+              assigned_at: null,
+              team_reject_reason: "Coordinator did not confirm team execution",
+              notes: `${request.notes || ""}\n${confirmationLine}`.trim(),
+            },
+            { transaction: t },
+          );
+
+          if (assignedTeamId) {
+            const team = await db.RescueTeam.findByPk(assignedTeamId, {
+              transaction: t,
+            });
+            if (team) {
+              await team.update({ status: "available" }, { transaction: t });
+            }
+          }
+        });
+      }
+
+      await request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "verifier",
+            attributes: ["id", "username", "email", "role"],
+          },
+          {
+            model: this.UserModel,
+            as: "assigner",
+            attributes: ["id", "username", "email", "role"],
+          },
+          { model: db.RescueTeam, as: "assigned_team" },
+        ],
+      });
+
       return request;
     } catch (error) {
       throw error;
