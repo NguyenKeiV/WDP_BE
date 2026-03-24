@@ -317,6 +317,77 @@ class RescueRequestController {
     }
   }
 
+  // Team báo cáo đã/không thực hiện nhiệm vụ (chờ coordinator xác nhận)
+  static async teamReportExecution(req, res) {
+    try {
+      const { id } = req.params;
+      const { executed, report_notes, report_media_urls } = req.body;
+
+      const request = await RescueRequestService.teamReportExecution(
+        id,
+        req.user.id,
+        {
+          executed,
+          reportNotes: report_notes,
+          reportMediaUrls: report_media_urls,
+        },
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Đã gửi báo cáo thực hiện nhiệm vụ. Chờ điều phối xác nhận.",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("not assigned to your team")
+            ? 403
+            : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to report mission execution",
+        error: error.message,
+      });
+    }
+  }
+
+  // Coordinator/Admin xác nhận báo cáo thực hiện của team
+  static async confirmTeamExecution(req, res) {
+    try {
+      const { id } = req.params;
+      const { confirmed, confirmation_notes } = req.body;
+
+      const request = await RescueRequestService.confirmTeamExecution(
+        id,
+        req.user.id,
+        {
+          confirmed,
+          confirmationNotes: confirmation_notes,
+        },
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Đã xác nhận báo cáo thực hiện nhiệm vụ của team.",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("Only coordinators")
+            ? 403
+            : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to confirm mission execution report",
+        error: error.message,
+      });
+    }
+  }
+
   static async completeMission(req, res) {
     try {
       const { id } = req.params;

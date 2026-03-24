@@ -48,6 +48,20 @@ router.post(
   RescueRequestController.teamRejectMission,
 );
 
+// Team báo cáo đã/không thực hiện nhiệm vụ để coordinator xác nhận
+router.post(
+  "/:id/team-report-execution",
+  requireRescueTeam,
+  RescueRequestController.teamReportExecution,
+);
+
+// Coordinator/Admin xác nhận báo cáo thực hiện của team
+router.post(
+  "/:id/confirm-execution",
+  requireAdminOrCoordinator,
+  RescueRequestController.confirmTeamExecution,
+);
+
 router.post(
   "/:id/complete",
   requireAdminOrCoordinatorOrRescueTeam,
