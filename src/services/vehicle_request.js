@@ -12,7 +12,7 @@ class VehicleRequestService {
   // Sửa: thêm tham số userRole và userTeamId để filter đúng cho rescue_team
   static async getAllRequests(filters = {}, page = 1, limit = 20, user = null) {
     try {
-      const { status, team_id } = filters;
+      const { status, team_id, rescue_request_id } = filters;
       const offset = (page - 1) * limit;
       const where = {};
       if (status) where.status = status;
@@ -38,6 +38,10 @@ class VehicleRequestService {
       } else if (team_id) {
         // Với role khác, cho phép filter theo team_id nếu truyền vào
         where.team_id = team_id;
+      }
+
+      if (rescue_request_id) {
+        where.rescue_request_id = rescue_request_id;
       }
 
       const { count, rows } = await this.VehicleRequestModel.findAndCountAll({
