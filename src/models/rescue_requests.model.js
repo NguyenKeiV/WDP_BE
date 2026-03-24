@@ -106,6 +106,16 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         comment: "Lý do team từ chối nhiệm vụ",
       },
+      team_report: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+      },
+      coordinator_confirmation: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+      },
       completion_media_urls: {
         type: DataTypes.JSON,
         allowNull: true,

@@ -532,11 +532,22 @@ class RescueRequestService {
         .filter(Boolean)
         .join("\n");
 
+      const teamReportPayload = {
+        executed,
+        report_notes: reportNotes,
+        report_media_urls: Array.isArray(reportMediaUrls)
+          ? reportMediaUrls.filter(Boolean)
+          : [],
+        reported_at: new Date(),
+        reported_by: userId,
+      };
+
       if (executed) {
         await request.update({
           // Trạng thái trung gian: chờ coordinator xác nhận team đã thực hiện
           status: "verified",
           notes: `${request.notes || ""}\n${normalizedReport}`.trim(),
+          team_report: teamReportPayload,
         });
       } else {
         await transaction(async (t) => {
@@ -547,6 +558,7 @@ class RescueRequestService {
               assigned_at: null,
               team_reject_reason: "Team reported cannot execute mission",
               notes: `${request.notes || ""}\n${normalizedReport}`.trim(),
+              team_report: teamReportPayload,
             },
             { transaction: t },
           );
@@ -610,10 +622,18 @@ class RescueRequestService {
         .filter(Boolean)
         .join("\n");
 
+      const coordinatorConfirmationPayload = {
+        confirmed,
+        confirmation_notes: confirmationNotes,
+        confirmed_at: new Date(),
+        confirmed_by: coordinatorId,
+      };
+
       if (confirmed) {
         await request.update({
           status: "on_mission",
           notes: `${request.notes || ""}\n${confirmationLine}`.trim(),
+          coordinator_confirmation: coordinatorConfirmationPayload,
         });
       } else {
         await transaction(async (t) => {
@@ -626,6 +646,7 @@ class RescueRequestService {
               assigned_at: null,
               team_reject_reason: "Coordinator did not confirm team execution",
               notes: `${request.notes || ""}\n${confirmationLine}`.trim(),
+              coordinator_confirmation: coordinatorConfirmationPayload,
             },
             { transaction: t },
           );
