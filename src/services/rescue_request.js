@@ -286,6 +286,7 @@ class RescueRequestService {
           "assigned",
           "on_mission",
           "verified",
+          "partially_completed",
         ].includes(request.status)
       ) {
         throw new Error(
