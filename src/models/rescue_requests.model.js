@@ -44,6 +44,7 @@ module.exports = (sequelize, DataTypes) => {
           "assigned", // ← THÊM MỚI: chờ team xác nhận
           "on_mission",
           "completed",
+          "partially_completed",
           "rejected",
         ),
         allowNull: false,
@@ -99,6 +100,11 @@ module.exports = (sequelize, DataTypes) => {
       assigned_by: {
         type: DataTypes.UUID,
         allowNull: true,
+      },
+      assignment_history: {
+        type: DataTypes.JSON,
+        allowNull: false,
+        defaultValue: [],
       },
       team_reject_reason: {
         // ← THÊM MỚI: lý do team từ chối

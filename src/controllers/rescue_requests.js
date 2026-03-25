@@ -210,7 +210,7 @@ class RescueRequestController {
   static async assignTeam(req, res) {
     try {
       const { id } = req.params;
-      const { team_id } = req.body;
+      const { team_id, reason } = req.body;
       if (!team_id)
         return res
           .status(400)
@@ -219,6 +219,7 @@ class RescueRequestController {
         id,
         team_id,
         req.user.id,
+        reason,
       );
       res
         .status(200)
@@ -321,13 +322,23 @@ class RescueRequestController {
   static async teamReportExecution(req, res) {
     try {
       const { id } = req.params;
-      const { executed, report_notes, report_media_urls } = req.body;
+      const {
+        executed,
+        outcome,
+        unmet_people_count,
+        partial_reason,
+        report_notes,
+        report_media_urls,
+      } = req.body;
 
       const request = await RescueRequestService.teamReportExecution(
         id,
         req.user.id,
         {
           executed,
+          outcome,
+          unmet_people_count,
+          partial_reason,
           reportNotes: report_notes,
           reportMediaUrls: report_media_urls,
         },
@@ -391,12 +402,21 @@ class RescueRequestController {
   static async completeMission(req, res) {
     try {
       const { id } = req.params;
-      const { completion_notes, completion_media_urls } = req.body;
+      const {
+        completion_notes,
+        completion_media_urls,
+        completion_outcome,
+        unmet_people_count,
+        partial_reason,
+      } = req.body;
       const request = await RescueRequestService.completeMission(
         id,
         req.user.id,
         completion_notes,
         completion_media_urls,
+        completion_outcome,
+        unmet_people_count,
+        partial_reason,
       );
       res
         .status(200)
@@ -528,6 +548,23 @@ class RescueRequestController {
           message: "Failed to retrieve statistics",
           error: error.message,
         });
+    }
+  }
+
+  static async getTacticalMapStats(req, res) {
+    try {
+      const stats = await RescueRequestService.getTacticalMapStats();
+      res.status(200).json({
+        success: true,
+        message: "Tactical map statistics retrieved successfully",
+        data: stats,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: "Failed to retrieve tactical map statistics",
+        error: error.message,
+      });
     }
   }
 }

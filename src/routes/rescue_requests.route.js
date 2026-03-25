@@ -11,6 +11,10 @@ const router = express.Router();
 
 router.get("/stats/summary", RescueRequestController.getStatistics);
 router.get(
+  "/stats/tactical-map",
+  RescueRequestController.getTacticalMapStats,
+);
+router.get(
   "/my-team-missions",
   requireRescueTeam,
   RescueRequestController.getMyTeamMissions,
