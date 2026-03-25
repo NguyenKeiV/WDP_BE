@@ -4,8 +4,8 @@ class UserController {
   // Get all users with pagination
   static async getAllUsers(req, res) {
     try {
-      const { page = 1, limit = 10 } = req.query;
-      const result = await UserService.getAllUsers(page, limit);
+      const { page = 1, limit = 10, role, q } = req.query;
+      const result = await UserService.getAllUsers(page, limit, { role, q });
 
       res.status(200).json({
         success: true,
