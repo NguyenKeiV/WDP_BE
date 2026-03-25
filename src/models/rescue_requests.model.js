@@ -116,6 +116,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: null,
       },
+      citizen_confirmation: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+      },
       completion_media_urls: {
         type: DataTypes.JSON,
         allowNull: true,

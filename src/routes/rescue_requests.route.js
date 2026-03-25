@@ -5,7 +5,6 @@ const {
   requireAuth,
   requireAdminOrCoordinator,
   requireRescueTeam,
-  requireAdminOrCoordinatorOrRescueTeam,
 } = require("../middlewares/auth");
 
 const router = express.Router();
@@ -64,8 +63,13 @@ router.post(
 
 router.post(
   "/:id/complete",
-  requireAdminOrCoordinatorOrRescueTeam,
+  requireAdminOrCoordinator,
   RescueRequestController.completeMission,
+);
+router.post(
+  "/:id/citizen-confirm-rescue",
+  requireAuth,
+  RescueRequestController.citizenConfirmRescue,
 );
 router.put("/:id", requireAuth, RescueRequestController.updateRescueRequest);
 router.delete("/:id", requireAuth, RescueRequestController.deleteRescueRequest);

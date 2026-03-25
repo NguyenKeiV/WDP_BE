@@ -520,6 +520,11 @@ class RescueRequestService {
       if (request.assigned_team_id !== team.id) {
         throw new Error("This mission is not assigned to your team");
       }
+      if (team.status !== "on_mission") {
+        throw new Error(
+          `Cannot report execution when team status is '${team.status}'.`,
+        );
+      }
 
       const normalizedReport = [
         "--- Team execution report ---",
@@ -630,11 +635,38 @@ class RescueRequestService {
       };
 
       if (confirmed) {
-        await request.update({
-          status: "on_mission",
-          notes: `${request.notes || ""}\n${confirmationLine}`.trim(),
+        const completedAt = new Date();
+        const completionLine = [
+          "--- Mission completed (coordinator confirmed execution) ---",
+          `completed_at: ${completedAt.toISOString()}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const requestUpdatePayload = {
+          status: "completed",
+          notes: `${request.notes || ""}\n${confirmationLine}\n${completionLine}`.trim(),
           coordinator_confirmation: coordinatorConfirmationPayload,
+        };
+
+        if (this.RescueRequestModel.rawAttributes.completed_at) {
+          requestUpdatePayload.completed_at = completedAt;
+        }
+
+        await transaction(async (t) => {
+          await request.update(requestUpdatePayload, { transaction: t });
+
+          if (request.assigned_team_id) {
+            const team = await db.RescueTeam.findByPk(request.assigned_team_id, {
+              transaction: t,
+            });
+            if (team) {
+              await team.update({ status: "available" }, { transaction: t });
+            }
+          }
         });
+
+        await this.notifyTeamToReturnVehicleIfNeeded(requestId);
       } else {
         await transaction(async (t) => {
           const assignedTeamId = request.assigned_team_id;
@@ -704,9 +736,9 @@ class RescueRequestService {
       }
       const coordinator = await this.UserModel.findByPk(coordinatorId);
       if (!coordinator) throw new Error("Coordinator not found");
-      if (!["coordinator", "admin", "rescue_team"].includes(coordinator.role)) {
+      if (!["coordinator", "admin"].includes(coordinator.role)) {
         throw new Error(
-          "Only coordinators, admins or rescue teams can complete missions",
+          "Only coordinators or admins can complete missions",
         );
       }
       if (!request.assigned_team_id)
@@ -715,22 +747,42 @@ class RescueRequestService {
       const team = await RescueTeamService.getTeamById(
         request.assigned_team_id,
       );
+
+      const completedAt = new Date();
+      const completionTraceLine = [
+        "--- Mission completed ---",
+        `completed_at: ${completedAt.toISOString()}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const requestUpdatePayload = {
+        status: "completed",
+        notes: [
+          request.notes || "",
+          completionNotes ? `Completed: ${completionNotes}` : null,
+          completionTraceLine,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .trim(),
+        completion_media_urls: Array.isArray(completionMediaUrls)
+          ? completionMediaUrls
+          : request.completion_media_urls || [],
+      };
+
+      if (this.RescueRequestModel.rawAttributes.completed_at) {
+        requestUpdatePayload.completed_at = completedAt;
+      }
+
       const result = await transaction(async (t) => {
-        await request.update(
-          {
-            status: "completed",
-            notes: completionNotes
-              ? `${request.notes || ""}\nCompleted: ${completionNotes}`
-              : request.notes,
-            completion_media_urls: Array.isArray(completionMediaUrls)
-              ? completionMediaUrls
-              : request.completion_media_urls || [],
-          },
-          { transaction: t },
-        );
+        await request.update(requestUpdatePayload, { transaction: t });
         await team.update({ status: "available" }, { transaction: t });
         return { request, team };
       });
+
+      await this.notifyTeamToReturnVehicleIfNeeded(requestId);
+
       await result.request.reload({
         include: [
           {
@@ -757,6 +809,47 @@ class RescueRequestService {
     }
   }
 
+  static async notifyTeamToReturnVehicleIfNeeded(rescueRequestId) {
+    try {
+      if (!rescueRequestId) return;
+
+      const request = await this.getRescueRequestById(rescueRequestId);
+      if (!request?.assigned_team_id) return;
+
+      const vehicleReq = await db.VehicleRequest.findOne({
+        where: {
+          rescue_request_id: rescueRequestId,
+          team_id: request.assigned_team_id,
+          status: "approved",
+        },
+        order: [["created_at", "DESC"]],
+      });
+
+      if (!vehicleReq) return;
+
+      const team = await db.RescueTeam.findByPk(request.assigned_team_id);
+      if (!team?.user_id) return;
+
+      const teamUser = await db.User.findByPk(team.user_id);
+      if (!teamUser?.expo_push_token) return;
+
+      const UserService = require("./user");
+      await UserService.sendPushNotification(
+        teamUser.expo_push_token,
+        "✅ Nhiệm vụ đã hoàn thành",
+        "Vui lòng thực hiện trả phương tiện về kho khi kết thúc nhiệm vụ.",
+        {
+          type: "mission_completed_return_vehicle",
+          rescue_request_id: request.id,
+          team_id: request.assigned_team_id,
+          vehicle_request_id: vehicleReq.id,
+        },
+      );
+    } catch (e) {
+      console.error("Failed to notify team for vehicle return:", e);
+    }
+  }
+
   static async linkGuestRequestsToUser(requestIds, userId) {
     if (!requestIds || !Array.isArray(requestIds) || requestIds.length === 0) {
       return { linked: 0, request_ids: [] };
@@ -772,23 +865,138 @@ class RescueRequestService {
   static async updateRescueRequest(id, updateData, userId = null) {
     try {
       const request = await this.getRescueRequestById(id);
-      const allowedFields = [
-        "status",
-        "priority",
-        "notes",
-        "verified_by",
-        "verified_at",
-      ];
-      const filteredData = {};
-      allowedFields.forEach((field) => {
-        if (updateData[field] !== undefined)
-          filteredData[field] = updateData[field];
-      });
-      if (updateData.status === "verified" && userId) {
-        filteredData.verified_by = userId;
-        filteredData.verified_at = new Date();
+      const requesterRole = updateData.__requester_role;
+
+      if (!requesterRole) {
+        throw new Error("Access denied");
       }
+
+      const filteredData = {};
+
+      if (["admin", "coordinator"].includes(requesterRole)) {
+        const allowedFields = [
+          "status",
+          "priority",
+          "notes",
+          "verified_by",
+          "verified_at",
+        ];
+        allowedFields.forEach((field) => {
+          if (updateData[field] !== undefined)
+            filteredData[field] = updateData[field];
+        });
+
+        if (updateData.status === "verified" && userId) {
+          filteredData.verified_by = userId;
+          filteredData.verified_at = new Date();
+        }
+      } else {
+        const hasRestrictedFields =
+          updateData.status !== undefined ||
+          updateData.verified_by !== undefined ||
+          updateData.verified_at !== undefined ||
+          updateData.priority !== undefined;
+
+        if (requesterRole === "rescue_team" && hasRestrictedFields) {
+          throw new Error("Access denied");
+        }
+
+        const updateKeys = Object.keys(updateData).filter(
+          (key) => key !== "__requester_role",
+        );
+
+        if (updateKeys.length === 0) {
+          throw new Error("No valid fields to update");
+        }
+
+        if (updateKeys.some((key) => key !== "notes")) {
+          throw new Error("Citizens can only update notes");
+        }
+
+        if (!userId || request.user_id !== userId) {
+          throw new Error("Access denied");
+        }
+
+        filteredData.notes = updateData.notes;
+      }
+
+      if (Object.keys(filteredData).length === 0) {
+        throw new Error("No valid fields to update");
+      }
+
       await request.update(filteredData);
+      return request;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async citizenConfirmRescue(
+    requestId,
+    userId,
+    { confirmed, feedbackNotes = null } = {},
+  ) {
+    try {
+      if (typeof confirmed !== "boolean") {
+        throw new Error("'confirmed' must be a boolean");
+      }
+
+      const request = await this.getRescueRequestById(requestId);
+
+      if (request.status !== "completed") {
+        throw new Error(
+          `Cannot confirm rescue for request with status '${request.status}'.`,
+        );
+      }
+
+      if (!userId || request.user_id !== userId) {
+        throw new Error("Only the request creator can confirm rescue");
+      }
+
+      const confirmedAt = new Date();
+      const citizenConfirmationPayload = {
+        confirmed,
+        feedback_notes: feedbackNotes,
+        confirmed_at: confirmedAt,
+        confirmed_by: userId,
+      };
+
+      const confirmationLine = [
+        "--- Citizen confirmation ---",
+        `confirmed: ${confirmed ? "yes" : "no"}`,
+        feedbackNotes ? `feedback: ${feedbackNotes}` : null,
+        `confirmed_at: ${confirmedAt.toISOString()}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await request.update({
+        status: "completed",
+        citizen_confirmation: citizenConfirmationPayload,
+        notes: `${request.notes || ""}\n${confirmationLine}`.trim(),
+      });
+
+      await request.reload({
+        include: [
+          {
+            model: this.UserModel,
+            as: "creator",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: this.UserModel,
+            as: "verifier",
+            attributes: ["id", "username", "email", "role"],
+          },
+          {
+            model: this.UserModel,
+            as: "assigner",
+            attributes: ["id", "username", "email", "role"],
+          },
+          { model: db.RescueTeam, as: "assigned_team" },
+        ],
+      });
+
       return request;
     } catch (error) {
       throw error;

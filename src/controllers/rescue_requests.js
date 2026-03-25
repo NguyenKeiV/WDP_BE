@@ -422,13 +422,49 @@ class RescueRequestController {
     }
   }
 
+  static async citizenConfirmRescue(req, res) {
+    try {
+      const { id } = req.params;
+      const { confirmed, feedback_notes } = req.body;
+
+      const request = await RescueRequestService.citizenConfirmRescue(
+        id,
+        req.user.id,
+        {
+          confirmed,
+          feedbackNotes: feedback_notes,
+        },
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Citizen confirmation saved successfully",
+        data: request.toJSON(),
+      });
+    } catch (error) {
+      const statusCode =
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("Only the request creator")
+            ? 403
+            : 400;
+
+      res.status(statusCode).json({
+        success: false,
+        message: "Failed to save citizen confirmation",
+        error: error.message,
+      });
+    }
+  }
+
   static async updateRescueRequest(req, res) {
     try {
       const { id } = req.params;
       const userId = req.user ? req.user.id : null;
+      const requesterRole = req.user ? req.user.role : null;
       const request = await RescueRequestService.updateRescueRequest(
         id,
-        req.body,
+        { ...req.body, __requester_role: requesterRole },
         userId,
       );
       res
@@ -440,7 +476,12 @@ class RescueRequestController {
         });
     } catch (error) {
       const statusCode =
-        error.message === "Rescue request not found" ? 404 : 400;
+        error.message === "Rescue request not found"
+          ? 404
+          : error.message.includes("Access denied") ||
+              error.message.includes("Citizens can only update notes")
+            ? 403
+            : 400;
       res
         .status(statusCode)
         .json({
