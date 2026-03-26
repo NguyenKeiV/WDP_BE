@@ -143,6 +143,14 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: [],
         comment: "Ảnh minh chứng báo cáo không hoàn thành",
       },
+      /** Danh sách nhu yếu phẩm — bắt buộc khi category = relief (mobile/BE validate) */
+      relief_needs: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+        comment:
+          "Array { label, quantity, unit? } — chỉ dùng khi category = relief",
+      },
     },
     {
       tableName: "rescue_requests",

@@ -10,6 +10,43 @@ class RescueRequestService {
     return db.User;
   }
 
+  /**
+   * Chuẩn hoá relief_needs: [{ label, quantity, unit? }, ...]
+   */
+  static normalizeReliefNeeds(input) {
+    if (input == null) {
+      throw new Error("relief_needs is required for relief requests");
+    }
+    if (!Array.isArray(input)) {
+      throw new Error("relief_needs must be an array");
+    }
+    if (input.length === 0) {
+      throw new Error("relief_needs must include at least one item");
+    }
+    if (input.length > 40) {
+      throw new Error("relief_needs: too many items (max 40)");
+    }
+    return input.map((item, i) => {
+      const label = String(item.label ?? item.name ?? "").trim();
+      const qty = Number(item.quantity);
+      const unit =
+        item.unit != null ? String(item.unit).trim().slice(0, 24) : "";
+      if (!label) {
+        throw new Error(`relief_needs[${i}]: label (name) is required`);
+      }
+      if (!Number.isFinite(qty) || qty < 1 || qty > 1_000_000) {
+        throw new Error(
+          `relief_needs[${i}]: quantity must be between 1 and 1000000`,
+        );
+      }
+      return {
+        label,
+        quantity: Math.floor(qty),
+        ...(unit ? { unit } : {}),
+      };
+    });
+  }
+
   static async createRescueRequest(requestData, userId = null) {
     try {
       const {
@@ -24,6 +61,7 @@ class RescueRequestService {
         longitude,
         address,
         media_urls,
+        relief_needs,
       } = requestData;
 
       if (
@@ -48,6 +86,13 @@ class RescueRequestService {
         throw new Error("num_people must be at least 1");
       }
 
+      let reliefNeedsPayload = null;
+      if (category === "relief") {
+        reliefNeedsPayload = this.normalizeReliefNeeds(relief_needs);
+      } else if (relief_needs != null) {
+        throw new Error("relief_needs must not be sent for rescue requests");
+      }
+
       const rescueRequest = await transaction(async (t) => {
         return await this.RescueRequestModel.create(
           {
@@ -64,6 +109,7 @@ class RescueRequestService {
             address: location_type === "manual" ? address : null,
             media_urls: media_urls || [],
             user_id: userId,
+            relief_needs: reliefNeedsPayload,
           },
           { transaction: t },
         );
@@ -1313,6 +1359,15 @@ class RescueRequestService {
         if (updateData.status === "verified" && userId) {
           filteredData.verified_by = userId;
           filteredData.verified_at = new Date();
+        }
+
+        if (updateData.relief_needs !== undefined) {
+          if (request.category !== "relief") {
+            throw new Error("relief_needs can only be set on relief requests");
+          }
+          filteredData.relief_needs = this.normalizeReliefNeeds(
+            updateData.relief_needs,
+          );
         }
       } else {
         const hasRestrictedFields =
