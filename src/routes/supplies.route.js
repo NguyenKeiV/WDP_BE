@@ -30,6 +30,7 @@ const requireViewAccess = async (req, res, next) => {
 const router = express.Router();
 
 // --- Supply CRUD (static routes trước) ---
+router.get("/public", SupplyController.getPublicSupplies);
 router.get("/", requireViewAccess, SupplyController.getAllSupplies);
 router.get(
   "/distributions",

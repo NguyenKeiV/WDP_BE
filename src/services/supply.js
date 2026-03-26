@@ -83,6 +83,64 @@ class SupplyService {
     }
   }
 
+  /**
+   * Public-friendly supplies list for citizen dropdown.
+   * Default: return full catalog (in_stock=false) to match manager list.
+   * If in_stock=true -> only supplies with computed quantity > 0.
+   */
+  static async getPublicSupplies(filters = {}, page = 1, limit = 200) {
+    try {
+      const { category, province_city, in_stock = "false" } = filters;
+      const where = {};
+      if (category) where.category = category;
+      if (province_city) where.province_city = province_city;
+
+      const rows = await this.SupplyModel.findAll({
+        where,
+        order: [["name", "ASC"]],
+      });
+
+      const suppliesWithStock = await Promise.all(
+        rows.map(async (s) => {
+          const available = await this.getAvailableStock(s.id);
+          return {
+            id: s.id,
+            name: s.name,
+            category: s.category,
+            unit: s.unit,
+            province_city: s.province_city,
+            quantity: available,
+          };
+        }),
+      );
+
+      const onlyInStock =
+        String(in_stock).toLowerCase() === "true" ||
+        String(in_stock).toLowerCase() === "1";
+
+      const filtered = onlyInStock
+        ? suppliesWithStock.filter((s) => (s.quantity || 0) > 0)
+        : suppliesWithStock;
+
+      const safeLimit = Math.max(1, Math.min(parseInt(limit) || 200, 500));
+      const safePage = Math.max(1, parseInt(page) || 1);
+      const offset = (safePage - 1) * safeLimit;
+      const paged = filtered.slice(offset, offset + safeLimit);
+
+      return {
+        supplies: paged,
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total: filtered.length,
+          totalPages: Math.ceil(filtered.length / safeLimit) || 1,
+        },
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getSupplyById(id) {
     try {
       const supply = await this.SupplyModel.findByPk(id);

@@ -1,6 +1,37 @@
 const SupplyService = require("../services/supply");
 
 class SupplyController {
+  static async getPublicSupplies(req, res) {
+    try {
+      const {
+        page = 1,
+        limit = 200,
+        category,
+        province_city,
+        in_stock = "false",
+      } = req.query;
+
+      const filters = { category, province_city, in_stock };
+      Object.keys(filters).forEach(
+        (k) => filters[k] === undefined && delete filters[k],
+      );
+
+      const result = await SupplyService.getPublicSupplies(filters, page, limit);
+      res.status(200).json({
+        success: true,
+        message: "Public supplies retrieved successfully",
+        data: result.supplies,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: "Failed to retrieve public supplies",
+        error: error.message,
+      });
+    }
+  }
+
   static async getAllSupplies(req, res) {
     try {
       const { page = 1, limit = 20, category, province_city } = req.query;
