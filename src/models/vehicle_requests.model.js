@@ -48,7 +48,13 @@ module.exports = (sequelize, DataTypes) => {
         comment: "Số lượng phương tiện cần",
       },
       status: {
-        type: DataTypes.ENUM("pending", "approved", "rejected", "returned"),
+        type: DataTypes.ENUM(
+          "pending",
+          "approved",
+          "pending_return",
+          "rejected",
+          "returned",
+        ),
         allowNull: false,
         defaultValue: "pending",
       },
@@ -64,6 +70,23 @@ module.exports = (sequelize, DataTypes) => {
       },
       notes: {
         type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      return_report: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+      },
+      return_reported_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      return_reported_by: {
+        type: DataTypes.UUID,
+        allowNull: true,
+      },
+      returned_at: {
+        type: DataTypes.DATE,
         allowNull: true,
       },
     },

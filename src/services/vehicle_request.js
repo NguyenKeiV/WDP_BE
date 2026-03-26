@@ -12,7 +12,7 @@ class VehicleRequestService {
   // Sửa: thêm tham số userRole và userTeamId để filter đúng cho rescue_team
   static async getAllRequests(filters = {}, page = 1, limit = 20, user = null) {
     try {
-      const { status, team_id } = filters;
+      const { status, team_id, rescue_request_id } = filters;
       const offset = (page - 1) * limit;
       const where = {};
       if (status) where.status = status;
@@ -38,6 +38,10 @@ class VehicleRequestService {
       } else if (team_id) {
         // Với role khác, cho phép filter theo team_id nếu truyền vào
         where.team_id = team_id;
+      }
+
+      if (rescue_request_id) {
+        where.rescue_request_id = rescue_request_id;
       }
 
       const { count, rows } = await this.VehicleRequestModel.findAndCountAll({
@@ -266,18 +270,39 @@ class VehicleRequestService {
     }
   }
 
-  static async returnVehicles(id, managerId) {
+  static async returnVehicles(id, managerId, payload = {}) {
     try {
       const request = await this.getRequestById(id);
 
-      if (request.status !== "approved") {
+      if (!["approved", "pending_return"].includes(request.status)) {
         throw new Error(
           `Cannot return vehicles for request with status '${request.status}'`,
         );
       }
 
+      const returnedAt = new Date();
+      const managerNotes = payload?.manager_notes || null;
+      const currentReport =
+        request.return_report && typeof request.return_report === "object"
+          ? request.return_report
+          : {};
+      const mergedReturnReport = {
+        ...currentReport,
+        confirmed_by_manager: managerId,
+        confirmed_at: returnedAt,
+        manager_notes: managerNotes,
+      };
+
       await transaction(async (t) => {
-        await request.update({ status: "returned" }, { transaction: t });
+        await request.update(
+          {
+            status: "returned",
+            returned_at: returnedAt,
+            approved_by: managerId,
+            return_report: mergedReturnReport,
+          },
+          { transaction: t },
+        );
 
         await this.VehicleModel.update(
           {
@@ -298,7 +323,7 @@ class VehicleRequestService {
     }
   }
 
-  static async reportReturnByTeam(id, userId) {
+  static async reportReturnByTeam(id, userId, payload = {}) {
     try {
       const RescueTeamService = require("./rescue_team");
       const team = await RescueTeamService.getTeamByUserId(userId);
@@ -314,19 +339,52 @@ class VehicleRequestService {
         );
       }
 
-      await transaction(async (t) => {
-        await request.update({ status: "returned" }, { transaction: t });
-        await this.VehicleModel.update(
-          {
-            status: "available",
-            assigned_team_id: null,
-            vehicle_request_id: null,
-          },
-          {
-            where: { vehicle_request_id: id },
-            transaction: t,
-          },
-        );
+      const {
+        checklist = [],
+        fuel_level = null,
+        damage_report = null,
+        return_notes = null,
+        return_media_urls = [],
+      } = payload;
+
+      if (!Array.isArray(checklist)) {
+        throw new Error("'checklist' must be an array of strings");
+      }
+      if (checklist.some((item) => typeof item !== "string")) {
+        throw new Error("'checklist' must be an array of strings");
+      }
+      if (fuel_level !== null) {
+        const fuel = Number(fuel_level);
+        if (!Number.isFinite(fuel) || fuel < 0 || fuel > 100) {
+          throw new Error("'fuel_level' must be a number between 0 and 100");
+        }
+      }
+      if (damage_report !== null && typeof damage_report !== "string") {
+        throw new Error("'damage_report' must be a string");
+      }
+      if (return_notes !== null && typeof return_notes !== "string") {
+        throw new Error("'return_notes' must be a string");
+      }
+      if (!Array.isArray(return_media_urls)) {
+        throw new Error("'return_media_urls' must be an array");
+      }
+
+      const reportedAt = new Date();
+      const returnReportPayload = {
+        checklist,
+        fuel_level: fuel_level === null ? null : Number(fuel_level),
+        damage_report,
+        return_notes,
+        return_media_urls: return_media_urls.filter(Boolean),
+        reported_at: reportedAt,
+        reported_by: userId,
+      };
+
+      await request.update({
+        status: "pending_return",
+        return_report: returnReportPayload,
+        return_reported_at: reportedAt,
+        return_reported_by: userId,
       });
 
       return await this.getRequestById(id);

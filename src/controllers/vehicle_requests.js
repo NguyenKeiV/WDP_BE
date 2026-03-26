@@ -179,8 +179,13 @@ class VehicleRequestController {
     try {
       const { id } = req.params;
       const managerId = req.user.id;
+      const payload = req.body || {};
 
-      const request = await VehicleRequestService.returnVehicles(id, managerId);
+      const request = await VehicleRequestService.returnVehicles(
+        id,
+        managerId,
+        payload,
+      );
       res.status(200).json({
         success: true,
         message: "Vehicles returned successfully",
@@ -201,15 +206,17 @@ class VehicleRequestController {
     try {
       const { id } = req.params;
       const userId = req.user.id;
+      const payload = req.body || {};
 
       const request = await VehicleRequestService.reportReturnByTeam(
         id,
         userId,
+        payload,
       );
       res.status(200).json({
         success: true,
         message:
-          "Báo cáo thu hồi xe thành công. Phương tiện đã được trả về kho.",
+          "Báo cáo trả phương tiện đã được ghi nhận. Chờ quản lý xác nhận hoàn trả.",
         data: request.toJSON(),
       });
     } catch (error) {

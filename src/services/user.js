@@ -2,6 +2,7 @@ const { db, transaction } = require("../config/database");
 const { env } = require("../config/env");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { Op } = require("sequelize");
 
 class UserService {
   // Get User model from database instance
@@ -10,11 +11,25 @@ class UserService {
   }
 
   // Get all users with pagination
-  static async getAllUsers(page = 1, limit = 10) {
+  static async getAllUsers(page = 1, limit = 10, filters = {}) {
     try {
       const offset = (page - 1) * limit;
+      const where = {};
+
+      if (filters.role) {
+        where.role = filters.role;
+      }
+
+      if (filters.q && String(filters.q).trim()) {
+        const q = String(filters.q).trim();
+        where[Op.or] = [
+          { username: { [Op.like]: `%${q}%` } },
+          { email: { [Op.like]: `%${q}%` } },
+        ];
+      }
 
       const { count, rows: users } = await this.UserModel.findAndCountAll({
+        where,
         limit: parseInt(limit),
         offset: parseInt(offset),
         order: [["created_at", "DESC"]],

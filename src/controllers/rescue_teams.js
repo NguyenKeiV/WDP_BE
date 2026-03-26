@@ -40,13 +40,13 @@ class RescueTeamController {
         limit = 20,
         status,
         specialization,
-        province_city,
+        district,
       } = req.query;
 
       const filters = {
         status,
         specialization,
-        province_city,
+        district,
       };
 
       // Remove undefined filters
@@ -77,14 +77,14 @@ class RescueTeamController {
    */
   static async getAvailableTeams(req, res) {
     try {
-      const { province_city, specialization } = req.query;
+      const { district, specialization } = req.query;
 
       console.log(
-        `🔍 Getting available teams${province_city ? ` in ${province_city}` : ""}${specialization ? ` for ${specialization}` : ""}`,
+        `🔍 Getting available teams${district ? ` in ${district}` : ""}${specialization ? ` for ${specialization}` : ""}`,
       );
 
       const teams = await RescueTeamService.getAvailableTeams(
-        province_city,
+        district,
         specialization,
       );
 

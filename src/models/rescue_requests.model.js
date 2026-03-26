@@ -44,6 +44,7 @@ module.exports = (sequelize, DataTypes) => {
           "assigned", // ← THÊM MỚI: chờ team xác nhận
           "on_mission",
           "completed",
+          "partially_completed",
           "rejected",
         ),
         allowNull: false,
@@ -100,11 +101,31 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.UUID,
         allowNull: true,
       },
+      assignment_history: {
+        type: DataTypes.JSON,
+        allowNull: false,
+        defaultValue: [],
+      },
       team_reject_reason: {
         // ← THÊM MỚI: lý do team từ chối
         type: DataTypes.TEXT,
         allowNull: true,
         comment: "Lý do team từ chối nhiệm vụ",
+      },
+      team_report: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+      },
+      coordinator_confirmation: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+      },
+      citizen_confirmation: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
       },
       completion_media_urls: {
         type: DataTypes.JSON,

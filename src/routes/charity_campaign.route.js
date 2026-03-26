@@ -1,16 +1,19 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("../config/cloudinary");
 const CharityCampaignController = require("../controllers/charity_campaigns");
 const { requireAuth, requireManager } = require("../middlewares/auth");
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `campaign_${Date.now()}${ext}`);
+// SỬA: dùng Cloudinary thay vì diskStorage
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "rescue_app/campaigns",
+    allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
+    transformation: [{ quality: "auto", fetch_format: "auto" }],
   },
 });
 

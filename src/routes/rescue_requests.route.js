@@ -12,6 +12,10 @@ const router = express.Router();
 
 router.get("/stats/summary", RescueRequestController.getStatistics);
 router.get(
+  "/stats/tactical-map",
+  RescueRequestController.getTacticalMapStats,
+);
+router.get(
   "/my-team-missions",
   requireRescueTeam,
   RescueRequestController.getMyTeamMissions,
@@ -48,15 +52,34 @@ router.post(
   RescueRequestController.teamRejectMission,
 );
 
+// Team báo cáo đã/không thực hiện nhiệm vụ để coordinator xác nhận
+router.post(
+  "/:id/team-report-execution",
+  requireRescueTeam,
+  RescueRequestController.teamReportExecution,
+);
+
+// Coordinator/Admin xác nhận báo cáo thực hiện của team
+router.post(
+  "/:id/confirm-execution",
+  requireAdminOrCoordinator,
+  RescueRequestController.confirmTeamExecution,
+);
+
 router.post(
   "/:id/complete",
-  requireAdminOrCoordinatorOrRescueTeam,
+  requireAdminOrCoordinator,
   RescueRequestController.completeMission,
 );
 router.post(
   "/:id/report-mission-incomplete",
   requireAdminOrCoordinatorOrRescueTeam,
   RescueRequestController.reportMissionIncomplete,
+);
+router.post(
+  "/:id/citizen-confirm-rescue",
+  requireAuth,
+  RescueRequestController.citizenConfirmRescue,
 );
 router.put("/:id", requireAuth, RescueRequestController.updateRescueRequest);
 router.delete("/:id", requireAuth, RescueRequestController.deleteRescueRequest);
