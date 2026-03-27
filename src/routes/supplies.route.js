@@ -1,6 +1,10 @@
 const express = require("express");
 const SupplyController = require("../controllers/supplies");
-const { requireManager, requireRescueTeam } = require("../middlewares/auth");
+const {
+  requireManager,
+  requireRescueTeam,
+  optionalAuth,
+} = require("../middlewares/auth");
 const UserService = require("../services/user");
 
 const requireViewAccess = async (req, res, next) => {
@@ -30,8 +34,7 @@ const requireViewAccess = async (req, res, next) => {
 const router = express.Router();
 
 // --- Supply CRUD (static routes trước) ---
-router.get("/public", SupplyController.getPublicSupplies);
-router.get("/", requireViewAccess, SupplyController.getAllSupplies);
+router.get("/", optionalAuth, SupplyController.getAllSupplies);
 router.get(
   "/distributions",
   requireViewAccess,
