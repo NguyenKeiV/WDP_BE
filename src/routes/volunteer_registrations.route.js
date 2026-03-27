@@ -12,5 +12,10 @@ router.get(
   VolunteerRegistrationController.listAllForManager,
 );
 router.get("/:id", requireAuth, VolunteerRegistrationController.getById);
+router.post(
+  "/:id/review",
+  requireManager,
+  VolunteerRegistrationController.review,
+);
 
 module.exports = router;

@@ -112,6 +112,51 @@ class VolunteerRegistrationController {
       });
     }
   }
+
+  /** POST /:id/review — manager / admin: duyệt hoặc từ chối đơn đăng ký tình nguyện */
+  static async review(req, res) {
+    try {
+      const { id } = req.params;
+      const { status, note } = req.body;
+
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: "Trường 'status' là bắt buộc (approved | rejected | active | cancelled)",
+        });
+      }
+
+      const registration = await VolunteerRegistrationService.review(
+        id,
+        req.user.id,
+        { status, note },
+      );
+
+      const messageMap = {
+        approved: "Đơn đăng ký tình nguyện đã được duyệt",
+        rejected: "Đơn đăng ký tình nguyện đã bị từ chối",
+        active: "Đơn đăng ký tình nguyện đã được kích hoạt",
+        cancelled: "Đơn đăng ký tình nguyện đã bị hủy",
+      };
+
+      res.status(200).json({
+        success: true,
+        message: messageMap[status] || "Đơn đã được cập nhật",
+        data: registration.toJSON(),
+      });
+    } catch (error) {
+      const codeMap = {
+        "Volunteer registration not found": 404,
+        "Only pending registrations can be reviewed": 409,
+      };
+      const code = codeMap[error.message] || 400;
+      res.status(code).json({
+        success: false,
+        message: "Không thể duyệt đơn",
+        error: error.message,
+      });
+    }
+  }
 }
 
 module.exports = VolunteerRegistrationController;
