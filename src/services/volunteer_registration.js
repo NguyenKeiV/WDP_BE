@@ -5,6 +5,10 @@ class VolunteerRegistrationService {
     return db.VolunteerRegistration;
   }
 
+  static validStatuses() {
+    return ["pending", "approved", "active", "completed", "rejected", "cancelled"];
+  }
+
   static async create(data, userId) {
     const { support_type, district, note } = data;
     if (!support_type || !String(support_type).trim()) {
@@ -89,6 +93,31 @@ class VolunteerRegistrationService {
       ],
     });
     if (!row) throw new Error("Volunteer registration not found");
+    return row;
+  }
+
+  /**
+   * Manager/Admin review + coordinator note for volunteer registration.
+   * Also returns updated row (including citizen for push).
+   */
+  static async review(id, reviewerId, payload = {}) {
+    const { status, coordinator_note } = payload;
+    if (!status || !String(status).trim()) {
+      throw new Error("status is required");
+    }
+    const nextStatus = String(status).trim();
+    if (!this.validStatuses().includes(nextStatus)) {
+      throw new Error("Invalid status");
+    }
+
+    const row = await this.getByIdForManager(id);
+    await row.update({
+      status: nextStatus,
+      coordinator_note:
+        coordinator_note != null ? String(coordinator_note).trim() || null : null,
+      reviewed_by: reviewerId,
+      reviewed_at: new Date(),
+    });
     return row;
   }
 }

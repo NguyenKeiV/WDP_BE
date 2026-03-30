@@ -1,4 +1,5 @@
 const VolunteerRegistrationService = require("../services/volunteer_registration");
+const UserService = require("../services/user");
 
 class VolunteerRegistrationController {
   static citizenOnly(req, res) {
@@ -108,6 +109,62 @@ class VolunteerRegistrationController {
       res.status(400).json({
         success: false,
         message: "Không thể tải danh sách",
+        error: error.message,
+      });
+    }
+  }
+
+  /** PATCH /:id/review — manager/admin: duyệt + phản hồi + push tới citizen */
+  static async review(req, res) {
+    try {
+      const { id } = req.params;
+      const { status, coordinator_note } = req.body || {};
+
+      const row = await VolunteerRegistrationService.review(id, req.user.id, {
+        status,
+        coordinator_note,
+      });
+
+      // Push notification to citizen (nếu có token)
+      try {
+        const citizenId = row.user_id;
+        const citizen = await require("../config/database").db.User.findByPk(
+          citizenId,
+        );
+        const token = citizen?.expo_push_token;
+        if (token) {
+          const title =
+            row.status === "approved"
+              ? "✅ Đăng ký tình nguyện đã được duyệt"
+              : row.status === "rejected"
+                ? "❌ Đăng ký tình nguyện chưa được duyệt"
+                : "📣 Cập nhật đăng ký tình nguyện";
+
+          const body =
+            row.coordinator_note ||
+            `Trạng thái đăng ký của bạn: ${row.status}. Mở app để xem chi tiết.`;
+
+          await UserService.sendPushNotification(token, title, body, {
+            type: "volunteer_review",
+            registration_id: row.id,
+            status: row.status,
+          });
+        }
+      } catch (e) {
+        console.error("Failed to send volunteer review push:", e);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Volunteer registration reviewed",
+        data: row.toJSON(),
+      });
+    } catch (error) {
+      const code =
+        error.message === "Volunteer registration not found" ? 404 : 400;
+      res.status(code).json({
+        success: false,
+        message: "Không thể duyệt đăng ký",
         error: error.message,
       });
     }
