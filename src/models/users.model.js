@@ -71,6 +71,21 @@ module.exports = (sequelize, DataTypes) => {
   User.associate = function (models) {
     // Định nghĩa associates
     // Example: User.hasMany(models.Post, { foreignKey: 'userId' });
+    User.hasMany(models.VolunteerCampaign, {
+      foreignKey: "created_by",
+      as: "createdCampaigns",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.VolunteerCampaignInvitation, {
+      foreignKey: "user_id",
+      as: "campaignInvitations",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.VolunteerRegistration, {
+      foreignKey: "user_id",
+      as: "volunteerRegistrations",
+      onDelete: "CASCADE",
+    });
   };
 
   return User;
