@@ -1,5 +1,6 @@
 const { db, transaction } = require("../config/database");
 const { Op, fn, col, literal } = require("sequelize");
+const UserService = require("./user");
 
 class SupplyService {
   static get SupplyModel() {
@@ -265,6 +266,27 @@ class SupplyService {
         return distribution;
       });
 
+      // Gửi push notification cho team leader
+      try {
+        const teamUser = await db.User.findByPk(team.user_id);
+        if (teamUser?.expo_push_token) {
+          await UserService.sendPushNotification(
+            teamUser.expo_push_token,
+            "📦 Nhận vật tư mới",
+            `Đội ${team.name} được cấp ${quantity} ${supply.unit} ${supply.name}.`,
+            {
+              type: "supply_distributed",
+              team_id: teamId,
+              supply_id: supplyId,
+              supply_name: supply.name,
+              quantity,
+            },
+          );
+        }
+      } catch (pushErr) {
+        console.error("Push notification error (distribute):", pushErr);
+      }
+
       return result;
     } catch (error) {
       throw error;
@@ -349,6 +371,47 @@ class SupplyService {
 
         return distributions;
       });
+
+      // Gửi push notification cho từng team nhận hàng
+      try {
+        // Group theo team_id để gửi 1 notification/team
+        const teamMap = {};
+        for (const item of items) {
+          if (!teamMap[item.team_id]) {
+            teamMap[item.team_id] = [];
+          }
+          const supply = await this.SupplyModel.findByPk(item.supply_id);
+          teamMap[item.team_id].push({
+            name: supply?.name || "Vật tư",
+            quantity: item.quantity,
+            unit: supply?.unit || "đơn vị",
+          });
+        }
+
+        for (const [tid, supplyItems] of Object.entries(teamMap)) {
+          const team = await db.RescueTeam.findByPk(tid);
+          if (!team) continue;
+          const teamUser = await db.User.findByPk(team.user_id);
+          if (!teamUser?.expo_push_token) continue;
+
+          const itemSummary = supplyItems
+            .map((s) => `${s.quantity} ${s.unit} ${s.name}`)
+            .join(", ");
+
+          await UserService.sendPushNotification(
+            teamUser.expo_push_token,
+            "📦 Nhận vật tư mới",
+            `Đội ${team.name} được cấp: ${itemSummary}.`,
+            {
+              type: "supply_distributed",
+              team_id: tid,
+              items: supplyItems,
+            },
+          );
+        }
+      } catch (pushErr) {
+        console.error("Push notification error (bulkDistribute):", pushErr);
+      }
 
       return results;
     } catch (error) {
