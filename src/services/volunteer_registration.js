@@ -1,8 +1,17 @@
 const { db } = require("../config/database");
+const UserService = require("./user");
 
 class VolunteerRegistrationService {
   static get Model() {
     return db.VolunteerRegistration;
+  }
+
+  static getIO() {
+    try {
+      return require("../config/socket").getIO();
+    } catch {
+      return null;
+    }
   }
 
   static validStatuses() {
@@ -97,11 +106,15 @@ class VolunteerRegistrationService {
   }
 
   /**
-   * Manager/Admin review + coordinator note for volunteer registration.
-   * Also returns updated row (including citizen for push).
+   * Manager / admin: duyệt hoặc từ chối đơn đăng ký tình nguyện.
+   * Gửi socket event + push notification tới citizen.
+   * @param {string} id - VolunteerRegistration ID
+   * @param {string} reviewerId - ID của manager/admin thực hiện duyệt
+   * @param {{ status: string, coordinator_note?: string }} payload
    */
   static async review(id, reviewerId, payload = {}) {
     const { status, coordinator_note } = payload;
+
     if (!status || !String(status).trim()) {
       throw new Error("status is required");
     }
@@ -110,15 +123,87 @@ class VolunteerRegistrationService {
       throw new Error("Invalid status");
     }
 
-    const row = await this.getByIdForManager(id);
-    await row.update({
+    const registration = await this.Model.findByPk(id, {
+      include: [
+        { model: db.User, as: "citizen", attributes: ["id", "username", "email", "expo_push_token"] },
+        { model: db.User, as: "reviewer", attributes: ["id", "username", "email"], required: false },
+      ],
+    });
+
+    if (!registration) throw new Error("Volunteer registration not found");
+
+    if (registration.status !== "pending") {
+      throw new Error("Only pending registrations can be reviewed");
+    }
+
+    const reviewer = await UserService.getUserById(reviewerId);
+    const oldStatus = registration.status;
+
+    await registration.update({
       status: nextStatus,
       coordinator_note:
         coordinator_note != null ? String(coordinator_note).trim() || null : null,
       reviewed_by: reviewerId,
       reviewed_at: new Date(),
     });
-    return row;
+
+    const io = this.getIO();
+    const citizen = registration.get("citizen");
+
+    const notificationTitle = this.#getNotificationTitle(nextStatus);
+    const notificationBody = this.#getNotificationBody(
+      nextStatus,
+      reviewer.username,
+      coordinator_note,
+    );
+
+    if (io) {
+      io.to(`user:${citizen.id}`).emit("volunteer_registration_reviewed", {
+        registration_id: registration.id,
+        old_status: oldStatus,
+        new_status: nextStatus,
+        reviewed_by: reviewerId,
+        reviewer_name: reviewer.username,
+        note: coordinator_note || null,
+        reviewed_at: registration.reviewed_at,
+      });
+    }
+
+    await UserService.sendPushNotification(
+      citizen.expo_push_token,
+      notificationTitle,
+      notificationBody,
+      {
+        type: "volunteer_registration_review",
+        registration_id: registration.id,
+        status: nextStatus,
+      },
+    );
+
+    return registration.reload();
+  }
+
+  static #getNotificationTitle(status) {
+    const titles = {
+      approved: "Đơn tình nguyện được duyệt!",
+      rejected: "Đơn tình nguyện bị từ chối",
+      active: "Đơn tình nguyện đã kích hoạt",
+      cancelled: "Đơn tình nguyện đã bị hủy",
+    };
+    return titles[status] || "Cập nhật đơn tình nguyện";
+  }
+
+  static #getNotificationBody(status, reviewerName, note) {
+    const reviewer = reviewerName || "Quản trị viên";
+    const noteSuffix = note ? `\nLý do: ${note}` : "";
+
+    const bodies = {
+      approved: `${reviewer} đã duyệt đơn tình nguyện của bạn. Cảm ơn bạn đã tham gia!${noteSuffix}`,
+      rejected: `${reviewer} đã từ chối đơn tình nguyện của bạn.${noteSuffix}`,
+      active: `${reviewer} đã kích hoạt đơn tình nguyện của bạn. Bạn đã sẵn sàng tham gia!${noteSuffix}`,
+      cancelled: `${reviewer} đã hủy đơn tình nguyện của bạn.${noteSuffix}`,
+    };
+    return bodies[status] || `Đơn tình nguyện của bạn đã được cập nhật trạng thái thành: ${status}`;
   }
 }
 
