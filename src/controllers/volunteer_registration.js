@@ -1,5 +1,4 @@
 const VolunteerRegistrationService = require("../services/volunteer_registration");
-const UserService = require("../services/user");
 
 class VolunteerRegistrationController {
   static citizenOnly(req, res) {
@@ -114,57 +113,46 @@ class VolunteerRegistrationController {
     }
   }
 
-  /** PATCH /:id/review — manager/admin: duyệt + phản hồi + push tới citizen */
+  /** PATCH /:id/review — manager / admin: duyệt hoặc từ chối đơn đăng ký tình nguyện */
   static async review(req, res) {
     try {
       const { id } = req.params;
-      const { status, coordinator_note } = req.body || {};
+      const { status, coordinator_note } = req.body;
 
-      const row = await VolunteerRegistrationService.review(id, req.user.id, {
-        status,
-        coordinator_note,
-      });
-
-      // Push notification to citizen (nếu có token)
-      try {
-        const citizenId = row.user_id;
-        const citizen = await require("../config/database").db.User.findByPk(
-          citizenId,
-        );
-        const token = citizen?.expo_push_token;
-        if (token) {
-          const title =
-            row.status === "approved"
-              ? "✅ Đăng ký tình nguyện đã được duyệt"
-              : row.status === "rejected"
-                ? "❌ Đăng ký tình nguyện chưa được duyệt"
-                : "📣 Cập nhật đăng ký tình nguyện";
-
-          const body =
-            row.coordinator_note ||
-            `Trạng thái đăng ký của bạn: ${row.status}. Mở app để xem chi tiết.`;
-
-          await UserService.sendPushNotification(token, title, body, {
-            type: "volunteer_review",
-            registration_id: row.id,
-            status: row.status,
-          });
-        }
-      } catch (e) {
-        console.error("Failed to send volunteer review push:", e);
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: "Trường 'status' là bắt buộc (approved | rejected | active | cancelled)",
+        });
       }
+
+      const registration = await VolunteerRegistrationService.review(
+        id,
+        req.user.id,
+        { status, coordinator_note },
+      );
+
+      const messageMap = {
+        approved: "Đơn đăng ký tình nguyện đã được duyệt",
+        rejected: "Đơn đăng ký tình nguyện đã bị từ chối",
+        active: "Đơn đăng ký tình nguyện đã được kích hoạt",
+        cancelled: "Đơn đăng ký tình nguyện đã bị hủy",
+      };
 
       res.status(200).json({
         success: true,
-        message: "Volunteer registration reviewed",
-        data: row.toJSON(),
+        message: messageMap[status] || "Đơn đã được cập nhật",
+        data: registration.toJSON(),
       });
     } catch (error) {
-      const code =
-        error.message === "Volunteer registration not found" ? 404 : 400;
+      const codeMap = {
+        "Volunteer registration not found": 404,
+        "Only pending registrations can be reviewed": 409,
+      };
+      const code = codeMap[error.message] || 400;
       res.status(code).json({
         success: false,
-        message: "Không thể duyệt đăng ký",
+        message: "Không thể duyệt đơn",
         error: error.message,
       });
     }

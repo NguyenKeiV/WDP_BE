@@ -375,7 +375,10 @@ class RescueRequestService {
             transaction: t,
           });
           if (previousTeam) {
-            await previousTeam.update({ status: "available" }, { transaction: t });
+            await previousTeam.update(
+              { status: "available" },
+              { transaction: t },
+            );
           }
         }
 
@@ -532,12 +535,40 @@ class RescueRequestService {
         throw new Error("This mission is not assigned to your team");
       }
 
+      const now = new Date();
+      const reasonTrim = reason.trim();
+      const normalizedReport = [
+        "--- Team execution report ---",
+        "executed: no",
+        "outcome: failed",
+        `notes: ${reasonTrim}`,
+        `reported_at: ${now.toISOString()}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const teamReportPayload = {
+        executed: false,
+        outcome: "failed",
+        unmet_people_count: 0,
+        partial_reason: null,
+        report_notes: reasonTrim,
+        report_media_urls: [],
+        reported_at: now,
+        reported_by: userId,
+      };
+
       await request.update({
         status: "pending_verification",
         assigned_team_id: null,
         assigned_at: null,
         assigned_by: request.assigned_by,
-        team_reject_reason: reason.trim(),
+        team_reject_reason: reasonTrim,
+        mission_incomplete_reason: reasonTrim,
+        mission_incomplete_media_urls: [],
+        team_report: teamReportPayload,
+        coordinator_confirmation: null,
+        notes: `${request.notes || ""}\n${normalizedReport}`.trim(),
       });
 
       // Push notification (giữ nguyên như cũ)
@@ -568,7 +599,7 @@ class RescueRequestService {
                 rescue_request_id: requestId,
                 district: request.district,
                 team_name: team.name,
-                reason: reason.trim(),
+                reason: reasonTrim,
                 timestamp: new Date().toISOString(),
               });
           } catch (e) {
@@ -629,7 +660,11 @@ class RescueRequestService {
         normalizedOutcome = executed ? "completed" : "failed";
       }
 
-      if (!["completed", "partially_completed", "failed"].includes(normalizedOutcome)) {
+      if (
+        !["completed", "partially_completed", "failed"].includes(
+          normalizedOutcome,
+        )
+      ) {
         throw new Error(
           "'outcome' must be one of: completed, partially_completed, failed",
         );
@@ -639,7 +674,7 @@ class RescueRequestService {
         typeof executed === "boolean"
           ? executed
           : normalizedOutcome === "completed" ||
-              normalizedOutcome === "partially_completed";
+            normalizedOutcome === "partially_completed";
 
       if (normalizedOutcome === "partially_completed") {
         const unmet = Number(unmet_people_count);
@@ -718,21 +753,84 @@ class RescueRequestService {
           team_report: teamReportPayload,
         });
       } else {
+        const failedReason =
+          normalizedReportNotes && String(normalizedReportNotes).trim()
+            ? String(normalizedReportNotes).trim()
+            : "Team reported cannot execute mission";
+
         await transaction(async (t) => {
           await request.update(
             {
               status: "pending_verification",
               assigned_team_id: null,
               assigned_at: null,
-              team_reject_reason: "Team reported cannot execute mission",
+              team_reject_reason: failedReason,
               notes: `${request.notes || ""}\n${normalizedReport}`.trim(),
               team_report: teamReportPayload,
               coordinator_confirmation: null,
+              mission_incomplete_reason: failedReason,
+              mission_incomplete_media_urls: Array.isArray(
+                normalizedReportMediaUrls,
+              )
+                ? normalizedReportMediaUrls.filter(Boolean)
+                : [],
             },
             { transaction: t },
           );
           await team.update({ status: "available" }, { transaction: t });
         });
+
+        // Notify coordinator when team reports failed execution
+        try {
+          const UserService = require("./user");
+          if (request.assigned_by) {
+            const coordinator = await db.User.findByPk(request.assigned_by);
+            if (coordinator?.expo_push_token) {
+              await UserService.sendPushNotification(
+                coordinator.expo_push_token,
+                "⚠️ Đội báo cáo không thể hoàn thành",
+                `${team.name} báo cáo không thể hoàn thành nhiệm vụ tại ${request.district}.`,
+                {
+                  type: "mission_incomplete",
+                  rescue_request_id: requestId,
+                  team_name: team.name,
+                  reason: failedReason,
+                },
+              );
+            }
+
+            try {
+              const { getIO } = require("../config/socket");
+              getIO()
+                .to(`user:${request.assigned_by}`)
+                .emit("mission_incomplete", {
+                  rescue_request_id: requestId,
+                  district: request.district,
+                  team_name: team.name,
+                  reason: failedReason,
+                  timestamp: new Date().toISOString(),
+                })
+                .to(`user:${request.assigned_by}`)
+                .emit("mission_execution_failed", {
+                  rescue_request_id: requestId,
+                  district: request.district,
+                  team_name: team.name,
+                  reason: failedReason,
+                  timestamp: new Date().toISOString(),
+                });
+            } catch (e) {
+              console.error(
+                "Failed to emit socket mission_execution_failed:",
+                e,
+              );
+            }
+          }
+        } catch (e) {
+          console.error(
+            "Failed to notify coordinator mission_execution_failed:",
+            e,
+          );
+        }
       }
 
       await request.reload({
@@ -815,7 +913,8 @@ class RescueRequestService {
 
         const requestUpdatePayload = {
           status: finalStatus,
-          notes: `${request.notes || ""}\n${confirmationLine}\n${completionLine}`.trim(),
+          notes:
+            `${request.notes || ""}\n${confirmationLine}\n${completionLine}`.trim(),
           coordinator_confirmation: coordinatorConfirmationPayload,
         };
 
@@ -827,9 +926,12 @@ class RescueRequestService {
           await request.update(requestUpdatePayload, { transaction: t });
 
           if (request.assigned_team_id) {
-            const team = await db.RescueTeam.findByPk(request.assigned_team_id, {
-              transaction: t,
-            });
+            const team = await db.RescueTeam.findByPk(
+              request.assigned_team_id,
+              {
+                transaction: t,
+              },
+            );
             if (team) {
               await team.update({ status: "available" }, { transaction: t });
             }
@@ -910,9 +1012,7 @@ class RescueRequestService {
       const coordinator = await this.UserModel.findByPk(coordinatorId);
       if (!coordinator) throw new Error("Coordinator not found");
       if (!["coordinator", "admin"].includes(coordinator.role)) {
-        throw new Error(
-          "Only coordinators or admins can complete missions",
-        );
+        throw new Error("Only coordinators or admins can complete missions");
       }
       if (!request.assigned_team_id)
         throw new Error("No team assigned to this request");
@@ -1055,15 +1155,34 @@ class RescueRequestService {
 
     const ts = new Date().toISOString();
     const reasonTrim = String(reason).trim();
+    const mediaArr = Array.isArray(failureMediaUrls) ? failureMediaUrls : [];
+
     const noteBlock = [
       request.notes,
+      "--- Team execution report ---",
+      "executed: no",
+      "outcome: failed",
+      `notes: ${reasonTrim}`,
+      mediaArr.length > 0
+        ? `media:\n${mediaArr.filter(Boolean).join("\n")}`
+        : null,
+      `reported_at: ${ts}`,
       `--- Báo cáo không hoàn thành (${ts}) ---`,
       reasonTrim,
     ]
       .filter(Boolean)
       .join("\n");
 
-    const mediaArr = Array.isArray(failureMediaUrls) ? failureMediaUrls : [];
+    const teamReportPayload = {
+      executed: false,
+      outcome: "failed",
+      unmet_people_count: 0,
+      partial_reason: null,
+      report_notes: reasonTrim,
+      report_media_urls: mediaArr.filter(Boolean),
+      reported_at: new Date(),
+      reported_by: userId,
+    };
 
     const coordinatorIdForNotify = request.assigned_by;
 
@@ -1072,6 +1191,9 @@ class RescueRequestService {
         {
           status: "pending_verification",
           notes: noteBlock,
+          team_report: teamReportPayload,
+          team_reject_reason: reasonTrim,
+          coordinator_confirmation: null,
           mission_incomplete_reason: reasonTrim,
           mission_incomplete_media_urls: mediaArr,
           assigned_team_id: null,
@@ -1168,7 +1290,9 @@ class RescueRequestService {
           [
             db.sequelize.fn(
               "SUM",
-              db.sequelize.literal(`CASE WHEN status = 'new' THEN 1 ELSE 0 END`),
+              db.sequelize.literal(
+                `CASE WHEN status = 'new' THEN 1 ELSE 0 END`,
+              ),
             ),
             "new_requests",
           ],
