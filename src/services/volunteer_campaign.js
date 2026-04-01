@@ -181,7 +181,7 @@ class VolunteerCampaignService {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * limitNum;
-    const where = { status: "active" };
+    const where = { status: "approved" };
     if (district) where.district = district;
 
     const { count, rows } = await this.VolunteerRegistration.findAndCountAll({
@@ -230,7 +230,7 @@ class VolunteerCampaignService {
       if (existing) continue;
 
       const registration = await this.VolunteerRegistration.findOne({
-        where: { user_id: userId, status: "active" },
+        where: { user_id: userId, status: "approved" },
       });
       if (!registration) continue;
 
