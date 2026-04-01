@@ -213,6 +213,26 @@ class VehicleRequestController {
         userId,
         payload,
       );
+
+      // Emit socket notification đến manager đã duyệt yêu cầu
+      try {
+        const { getIO } = require("../config/socket");
+        const io = getIO();
+        const requestJson = request.toJSON();
+        const managerId = requestJson.approved_by;
+        if (managerId) {
+          io.to(`user:${managerId}`).emit("vehicle_return_reported", {
+            vehicle_request_id: requestJson.id,
+            team_name: requestJson.team?.name || "Đội cứu hộ",
+            vehicle_type: requestJson.vehicle_type,
+            quantity: requestJson.quantity_needed,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (socketErr) {
+        console.error("Failed to emit vehicle_return_reported socket:", socketErr);
+      }
+
       res.status(200).json({
         success: true,
         message:
