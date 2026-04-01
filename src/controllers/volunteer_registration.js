@@ -113,11 +113,11 @@ class VolunteerRegistrationController {
     }
   }
 
-  /** POST /:id/review — manager / admin: duyệt hoặc từ chối đơn đăng ký tình nguyện */
+  /** PATCH /:id/review — manager / admin: duyệt hoặc từ chối đơn đăng ký tình nguyện */
   static async review(req, res) {
     try {
       const { id } = req.params;
-      const { status, note } = req.body;
+      const { status, coordinator_note } = req.body;
 
       if (!status) {
         return res.status(400).json({
@@ -129,7 +129,7 @@ class VolunteerRegistrationController {
       const registration = await VolunteerRegistrationService.review(
         id,
         req.user.id,
-        { status, note },
+        { status, coordinator_note },
       );
 
       const messageMap = {

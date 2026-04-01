@@ -14,6 +14,10 @@ class VolunteerRegistrationService {
     }
   }
 
+  static validStatuses() {
+    return ["pending", "approved", "active", "completed", "rejected", "cancelled"];
+  }
+
   static async create(data, userId) {
     const { support_type, district, note } = data;
     if (!support_type || !String(support_type).trim()) {
@@ -103,17 +107,20 @@ class VolunteerRegistrationService {
 
   /**
    * Manager / admin: duyệt hoặc từ chối đơn đăng ký tình nguyện.
+   * Gửi socket event + push notification tới citizen.
    * @param {string} id - VolunteerRegistration ID
-   * @param {string} managerId - ID của manager/admin thực hiện duyệt
-   * @param {{ status: "approved"|"rejected"|"active"|"cancelled", note?: string }} data
+   * @param {string} reviewerId - ID của manager/admin thực hiện duyệt
+   * @param {{ status: string, coordinator_note?: string }} payload
    */
-  static async review(id, managerId, data) {
-    const { status, note } = data;
+  static async review(id, reviewerId, payload = {}) {
+    const { status, coordinator_note } = payload;
 
-    if (!["approved", "rejected", "active", "cancelled"].includes(status)) {
-      throw new Error(
-        "Invalid status. Must be one of: approved, rejected, active, cancelled",
-      );
+    if (!status || !String(status).trim()) {
+      throw new Error("status is required");
+    }
+    const nextStatus = String(status).trim();
+    if (!this.validStatuses().includes(nextStatus)) {
+      throw new Error("Invalid status");
     }
 
     const registration = await this.Model.findByPk(id, {
@@ -129,30 +136,35 @@ class VolunteerRegistrationService {
       throw new Error("Only pending registrations can be reviewed");
     }
 
-    const reviewer = await UserService.getUserById(managerId);
+    const reviewer = await UserService.getUserById(reviewerId);
     const oldStatus = registration.status;
 
     await registration.update({
-      status,
-      coordinator_note: note || null,
-      reviewed_by: managerId,
+      status: nextStatus,
+      coordinator_note:
+        coordinator_note != null ? String(coordinator_note).trim() || null : null,
+      reviewed_by: reviewerId,
       reviewed_at: new Date(),
     });
 
     const io = this.getIO();
     const citizen = registration.get("citizen");
 
-    const notificationTitle = this.#getNotificationTitle(status);
-    const notificationBody = this.#getNotificationBody(status, reviewer.username, note);
+    const notificationTitle = this.#getNotificationTitle(nextStatus);
+    const notificationBody = this.#getNotificationBody(
+      nextStatus,
+      reviewer.username,
+      coordinator_note,
+    );
 
     if (io) {
       io.to(`user:${citizen.id}`).emit("volunteer_registration_reviewed", {
         registration_id: registration.id,
         old_status: oldStatus,
-        new_status: status,
-        reviewed_by: managerId,
+        new_status: nextStatus,
+        reviewed_by: reviewerId,
         reviewer_name: reviewer.username,
-        note: note || null,
+        note: coordinator_note || null,
         reviewed_at: registration.reviewed_at,
       });
     }
@@ -164,7 +176,7 @@ class VolunteerRegistrationService {
       {
         type: "volunteer_registration_review",
         registration_id: registration.id,
-        status,
+        status: nextStatus,
       },
     );
 
