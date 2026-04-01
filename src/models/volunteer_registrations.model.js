@@ -68,6 +68,11 @@ module.exports = (sequelize, DataTypes) => {
       as: "reviewer",
       onDelete: "SET NULL",
     });
+    VolunteerRegistration.hasMany(models.VolunteerCampaignInvitation, {
+      foreignKey: "user_id",
+      as: "campaignInvitations",
+      onDelete: "CASCADE",
+    });
   };
 
   return VolunteerRegistration;

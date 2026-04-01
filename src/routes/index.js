@@ -12,6 +12,7 @@ const uploadRoute = require("./upload.route");
 const charityRoute = require("./charity.route");
 const charityCampaignRoutes = require("./charity_campaign.route");
 const volunteerRegistrationsRoute = require("./volunteer_registrations.route");
+const volunteerCampaignsRoute = require("./volunteer_campaigns.route");
 
 router.use("/charity-campaigns", charityCampaignRoutes);
 router.use("/vehicle-requests", vehicleRequestsRoute);
@@ -24,5 +25,6 @@ router.use("/supplies", suppliesRoute);
 router.use("/import-batches", importBatchesRoute);
 router.use("/charity", charityRoute);
 router.use("/volunteer-registrations", volunteerRegistrationsRoute);
+router.use("/volunteer-campaigns", volunteerCampaignsRoute);
 
 module.exports = router;
