@@ -28,6 +28,8 @@ class RescueRequestService {
     }
     return input.map((item, i) => {
       const label = String(item.label ?? item.name ?? "").trim();
+      const supplyId =
+        item.supply_id != null ? String(item.supply_id).trim() : null;
       const qty = Number(item.quantity);
       const unit =
         item.unit != null ? String(item.unit).trim().slice(0, 24) : "";
@@ -40,11 +42,95 @@ class RescueRequestService {
         );
       }
       return {
+        ...(supplyId ? { supply_id: supplyId } : {}),
         label,
         quantity: Math.floor(qty),
         ...(unit ? { unit } : {}),
       };
     });
+  }
+
+  static async buildAutoUsageItemsFromReliefNeeds(request, outcome) {
+    const reliefNeeds = Array.isArray(request?.relief_needs)
+      ? request.relief_needs
+      : [];
+    if (reliefNeeds.length === 0) return [];
+
+    let ratio = 1;
+    if (outcome === "partially_completed") {
+      const totalPeople = Number(request?.num_people || 0);
+      const unmetPeople = Number(request?.team_report?.unmet_people_count || 0);
+      if (totalPeople > 0) {
+        const servedPeople = Math.max(totalPeople - unmetPeople, 0);
+        ratio = Math.min(Math.max(servedPeople / totalPeople, 0), 1);
+      }
+    }
+
+    const items = [];
+
+    for (const need of reliefNeeds) {
+      const supplyIdRaw = need?.supply_id;
+      const label = String(need?.label || need?.name || "").trim();
+      const baseQty = Number(need?.quantity || 0);
+
+      if (!Number.isFinite(baseQty) || baseQty <= 0) continue;
+
+      let quantityUsed = Math.floor(baseQty * ratio);
+      if (ratio > 0 && quantityUsed < 1) quantityUsed = 1;
+      if (quantityUsed <= 0) continue;
+
+      let supplyId = supplyIdRaw ? String(supplyIdRaw).trim() : "";
+
+      if (!supplyId && label) {
+        const matchedSupply = await db.Supply.findOne({
+          where: { name: label },
+        });
+        if (matchedSupply?.id) {
+          supplyId = String(matchedSupply.id);
+        }
+      }
+
+      if (!supplyId) continue;
+
+      items.push({
+        supply_id: supplyId,
+        quantity_used: quantityUsed,
+        notes: `Auto usage from relief_needs (${outcome})`,
+      });
+    }
+
+    return items;
+  }
+
+  static async autoReportReliefUsageForTeamReport(
+    request,
+    team,
+    userId,
+    outcome,
+  ) {
+    try {
+      if (!request || !team || !userId) return;
+      if (request.category !== "relief") return;
+
+      const existingUsageCount = await db.SupplyUsage.count({
+        where: { rescue_request_id: request.id, team_id: team.id },
+      });
+      if (existingUsageCount > 0) return;
+
+      const items = await this.buildAutoUsageItemsFromReliefNeeds(
+        request,
+        outcome,
+      );
+      if (!items.length) return;
+
+      const SupplyService = require("./supply");
+      await SupplyService.bulkReportUsage(items, team.id, request.id, userId);
+    } catch (error) {
+      console.error(
+        "Auto report relief usage failed:",
+        error?.message || error,
+      );
+    }
   }
 
   static async createRescueRequest(requestData, userId = null) {
@@ -745,6 +831,19 @@ class RescueRequestService {
         reported_at: new Date(),
         reported_by: userId,
       };
+
+      if (["completed", "partially_completed"].includes(normalizedOutcome)) {
+        const requestWithCurrentReport = {
+          ...request.toJSON(),
+          team_report: teamReportPayload,
+        };
+        await this.autoReportReliefUsageForTeamReport(
+          requestWithCurrentReport,
+          team,
+          userId,
+          normalizedOutcome,
+        );
+      }
 
       if (["completed", "partially_completed"].includes(normalizedOutcome)) {
         await request.update({
