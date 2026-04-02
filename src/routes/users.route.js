@@ -14,6 +14,7 @@ router.post("/admin/team-leaders", requireAdmin, UserController.createTeamLeader
 router.get("/", UserController.getAllUsers);
 router.get("/profile", UserController.getProfile);
 router.put("/push-token", requireAuth, UserController.updatePushToken);
+router.put("/change-password", requireAuth, UserController.changePassword);
 router.get("/:id", UserController.getUserById);
 router.put("/:id", UserController.updateUser);
 router.delete("/:id", UserController.deleteUser);

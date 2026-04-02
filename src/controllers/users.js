@@ -148,6 +148,34 @@ class UserController {
       });
     }
   }
+  // Change password
+  static async changePassword(req, res) {
+    try {
+      const userId = req.user.id;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: "Mật khẩu hiện tại và mật khẩu mới là bắt buộc",
+        });
+      }
+
+      const result = await UserService.changePassword(userId, currentPassword, newPassword);
+      res.status(200).json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      const statusCode = error.message.includes("không đúng") ? 401 : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: "Không thể đổi mật khẩu",
+        error: error.message,
+      });
+    }
+  }
+
   static async createTeamLeaderAccount(req, res) {
     try {
       const { email, username } = req.body;
