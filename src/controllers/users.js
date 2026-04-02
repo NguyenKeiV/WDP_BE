@@ -148,6 +148,29 @@ class UserController {
       });
     }
   }
+  static async createTeamLeaderAccount(req, res) {
+    try {
+      const { email, username } = req.body;
+      const result = await UserService.createTeamLeaderAccount({ email, username });
+
+      res.status(201).json({
+        success: true,
+        message: "Tài khoản trưởng nhóm đã được tạo và gửi email thông tin đăng nhập",
+        data: {
+          user: result.user,
+          plainPassword: result.plainPassword,
+        },
+      });
+    } catch (error) {
+      const statusCode = error.message.includes("đã được sử dụng") ? 409 : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: "Không thể tạo tài khoản",
+        error: error.message,
+      });
+    }
+  }
+
   static async updatePushToken(req, res) {
     try {
       const userId = req.user.id;
