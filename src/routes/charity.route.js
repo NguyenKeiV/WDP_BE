@@ -25,4 +25,11 @@ router.get("/campaigns", CharityCampaignController.getAllCampaigns);
 // Mobile/user xem chi tiết (public)
 router.get("/campaigns/:id", CharityCampaignController.getCampaignById);
 
+// Manager xóa đợt quyên góp
+router.delete(
+  "/campaigns/:id",
+  requireManager,
+  CharityCampaignController.deleteCampaign,
+);
+
 module.exports = router;

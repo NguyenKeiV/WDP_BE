@@ -35,5 +35,6 @@ router.post(
   CharityCampaignController.createCampaign,
 );
 router.patch("/:id/end", requireManager, CharityCampaignController.endCampaign);
+router.delete("/:id", requireManager, CharityCampaignController.deleteCampaign);
 
 module.exports = router;

@@ -77,6 +77,21 @@ class CharityCampaignService {
     await campaign.update({ status: "ended" });
     return campaign;
   }
+
+  static async deleteCampaign(id, managerId) {
+    const campaign = await this.getCampaignById(id);
+
+    if (
+      managerId &&
+      campaign.created_by &&
+      String(campaign.created_by) !== String(managerId)
+    ) {
+      throw new Error("Bạn không có quyền xóa đợt quyên góp này");
+    }
+
+    await campaign.destroy();
+    return true;
+  }
 }
 
 module.exports = CharityCampaignService;

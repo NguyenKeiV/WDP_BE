@@ -71,6 +71,20 @@ class CharityCampaignController {
       res.status(status).json({ success: false, error: error.message });
     }
   }
+
+  static async deleteCampaign(req, res) {
+    try {
+      const { id } = req.params;
+      await CharityCampaignService.deleteCampaign(id, req.user?.id);
+      res.status(200).json({
+        success: true,
+        message: "Campaign deleted successfully",
+      });
+    } catch (error) {
+      const status = error.message === "Campaign not found" ? 404 : 400;
+      res.status(status).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = CharityCampaignController;
