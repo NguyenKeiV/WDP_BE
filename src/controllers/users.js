@@ -157,7 +157,7 @@ class UserController {
         success: true,
         message: "Tài khoản trưởng nhóm đã được tạo và gửi email thông tin đăng nhập",
         data: {
-          user: result.user,
+          user: result.user.toJSON(),
           plainPassword: result.plainPassword,
         },
       });

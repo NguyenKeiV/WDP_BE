@@ -12,6 +12,7 @@ const transporter = nodemailer.createTransport({
   pool: true,
   maxConnections: 5,
   maxMessages: 100,
+  socketTimeout: 100000,
 });
 
 const verifyConnection = async () => {
