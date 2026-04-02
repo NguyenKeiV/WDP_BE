@@ -234,6 +234,27 @@ class UserService {
     return { user: user.toJSON(), plainPassword };
   }
 
+  // Change password (for authenticated team leader)
+  static async changePassword(userId, currentPassword, newPassword) {
+    const user = await this.UserModel.scope("withPassword").findByPk(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) {
+      throw new Error("Mật khẩu hiện tại không đúng");
+    }
+
+    if (newPassword.length < 6) {
+      throw new Error("Mật khẩu mới phải có ít nhất 6 ký tự");
+    }
+
+    const hashed = await bcrypt.hash(newPassword, env.BCRYPT.ROUNDS);
+    await user.update({ password: hashed });
+    return { message: "Đổi mật khẩu thành công" };
+  }
+
   static async updatePushToken(userId, token) {
     try {
       const user = await this.getUserById(userId);
