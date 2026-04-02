@@ -3,6 +3,29 @@ const { env } = require("../config/env");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
+const MailService = require("./mail");
+
+const crypto = require("crypto");
+
+const generateSecurePassword = (length = 12) => {
+  const lowercase = "abcdefghijklmnopqrstuvwxyz";
+  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const numbers = "0123456789";
+  const symbols = "!@#$%^&*";
+  const all = lowercase + uppercase + numbers + symbols;
+  let password = "";
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+  for (let i = 4; i < length; i++) {
+    password += all[Math.floor(Math.random() * all.length)];
+  }
+  return password
+    .split("")
+    .sort(() => crypto.randomBytes(1)[0] / 256 - 0.5)
+    .join("");
+};
 
 class UserService {
   // Get User model from database instance
@@ -185,6 +208,32 @@ class UserService {
       throw new Error("Invalid or expired token");
     }
   }
+  static async createTeamLeaderAccount({ email, username }) {
+    if (!email || !String(email).trim()) throw new Error("Email là bắt buộc");
+    if (!username || !String(username).trim()) throw new Error("Username là bắt buộc");
+
+    const existing = await this.UserModel.findOne({ where: { email } });
+    if (existing) throw new Error("Email đã được sử dụng");
+
+    const plainPassword = generateSecurePassword(12);
+    const hashedPassword = await bcrypt.hash(plainPassword, env.BCRYPT.ROUNDS);
+
+    const user = await transaction(async (t) =>
+      this.UserModel.create(
+        { username: username.trim(), email: email.trim(), password: hashedPassword, role: "manager" },
+        { transaction: t },
+      )
+    );
+
+    await MailService.sendTeamLeaderWelcome({
+      toEmail: email.trim(),
+      username: username.trim(),
+      plainPassword,
+    });
+
+    return { user: user.toJSON(), plainPassword };
+  }
+
   static async updatePushToken(userId, token) {
     try {
       const user = await this.getUserById(userId);

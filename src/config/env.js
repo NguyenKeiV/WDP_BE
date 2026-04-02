@@ -111,6 +111,17 @@ const env = {
   BCRYPT: {
     ROUNDS: parseInt(process.env.BCRYPT_ROUNDS) || 12,
   },
+
+  // Mail Configuration (SMTP)
+  MAIL: {
+    HOST: process.env.MAIL_HOST || "smtp.gmail.com",
+    PORT: parseInt(process.env.MAIL_PORT) || 587,
+    SECURE: process.env.MAIL_SECURE === "true",
+    USER: process.env.MAIL_USER || "",
+    PASS: process.env.MAIL_PASS || "",
+    FROM_NAME: process.env.MAIL_FROM_NAME || "WDP Food Relief",
+    FROM_EMAIL: process.env.MAIL_FROM_EMAIL || "noreply@wdpfoodrelief.com",
+  },
 };
 
 // Validation function to check required environment variables

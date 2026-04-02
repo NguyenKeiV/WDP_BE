@@ -1,11 +1,14 @@
 const express = require("express");
 const UserController = require("../controllers/users");
-const { requireAuth } = require("../middlewares/auth");
+const { requireAuth, requireAdmin } = require("../middlewares/auth");
 const router = express.Router();
 
 // Public routes
 router.post("/login", UserController.login);
 router.post("/register", UserController.createUser);
+
+// Admin routes
+router.post("/admin/team-leaders", requireAdmin, UserController.createTeamLeaderAccount);
 
 // Protected routes (these would need authentication middleware)
 router.get("/", UserController.getAllUsers);
